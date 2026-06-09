@@ -3,6 +3,7 @@ module.exports = {
     asar: true,
     extraResource: ['python'],
     name: 'mcMidiKeyboard',
+    executableName: 'mc-midi-keyboard',
   },
   rebuildConfig: {},
   makers: [
