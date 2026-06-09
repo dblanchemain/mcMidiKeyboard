@@ -20,25 +20,19 @@ import numpy as np
 PLATFORM = platform.system()
 USE_JACK  = PLATFORM == 'Linux'
 
+try:
+    import soundfile as sf
+    import sounddevice as sd
+except ImportError as e:
+    sys.stdout.write(json.dumps({'type': 'error', 'message': str(e)}) + '\n')
+    sys.stdout.flush()
+    sys.exit(1)
+
 if USE_JACK:
     try:
         import jack
-        import soundfile as sf
-        BACKEND = 'jack'
     except ImportError:
         USE_JACK = False
-        BACKEND  = 'sounddevice'
-else:
-    BACKEND = 'sounddevice'
-
-if BACKEND == 'sounddevice':
-    try:
-        import sounddevice as sd
-        import soundfile as sf
-    except ImportError as e:
-        sys.stdout.write(json.dumps({'type': 'error', 'message': str(e)}) + '\n')
-        sys.stdout.flush()
-        sys.exit(1)
 
 # ── Communication JSON ────────────────────────────────────────────────────────
 
@@ -259,7 +253,7 @@ def snapshot_tracks():
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_jack():
-    client    = jack.Client('mcMidiKeyboard')
+    client    = jack.Client('mcMidiKeyboard', no_start_server=True)
     MAX_PORTS = 16
     out_ports = [client.outports.register(f'out_{i+1}') for i in range(MAX_PORTS)]
 
@@ -313,11 +307,20 @@ def run_sounddevice():
     except Exception:
         n_out = 2
 
-    with sd.OutputStream(samplerate=SR, channels=n_out,
-                         blocksize=BLOCK, dtype='float32',
-                         callback=audio_callback):
-        emit({'type': 'ready', 'backend': 'sounddevice'})
-        process_commands()
+    # Essayer d'abord le périphérique par défaut, puis device=None en fallback
+    for device in [sd.default.device[1], None]:
+        try:
+            with sd.OutputStream(samplerate=SR, channels=n_out,
+                                 blocksize=BLOCK, dtype='float32',
+                                 device=device,
+                                 callback=audio_callback):
+                emit({'type': 'ready', 'backend': 'sounddevice'})
+                process_commands()
+            return
+        except sd.PortAudioError as e:
+            if device is None:
+                raise
+            emit({'type': 'error', 'message': f'Périphérique défaut indisponible, essai fallback: {e})'})
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Traitement des commandes
@@ -373,6 +376,10 @@ if __name__ == '__main__':
     threading.Thread(target=read_stdin,    daemon=True).start()
     threading.Thread(target=event_emitter, daemon=True).start()
     if USE_JACK:
-        run_jack()
+        try:
+            run_jack()
+        except Exception as e:
+            emit({'type': 'error', 'message': f'JACK indisponible ({e}), bascule sur sounddevice'})
+            run_sounddevice()
     else:
         run_sounddevice()
