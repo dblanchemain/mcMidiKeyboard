@@ -6,6 +6,10 @@ const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
 
+// WebMIDI via ALSA sur Linux
+app.commandLine.appendSwitch('enable-web-midi');
+app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
+
 let mainWindow;
 let audioProcess = null;
 
