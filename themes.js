@@ -31,14 +31,14 @@ const THEMES = {
   Marbré: {
     label: 'Marbré',
     vars: {
-      '--bg':      '#1c1b1f',
-      '--surface': '#2a2830',
-      '--border':  '#4a4455',
-      '--text':    '#ddd8e0',
-      '--accent':  '#c0a8d0',
-      '--red':     '#d07880',
-      '--green':   '#80b898',
-      '--muted':   '#786870',
+      '--bg':      '#ddd5c5',
+      '--surface': '#ece6d8',
+      '--border':  '#b8b0a0',
+      '--text':    '#1a1510',
+      '--accent':  '#c86810',
+      '--red':     '#b83020',
+      '--green':   '#507838',
+      '--muted':   '#786858',
     },
   },
   Clair: {
