@@ -4,37 +4,26 @@
   "description": "MIDI keyboard multichannel audio player",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "start-json": "electron . --descriptor",
-    "build": "electron-builder --linux AppImage deb"
+    "start": "electron-forge start",
+    "package": "electron-forge package",
+    "make": "electron-forge make"
   },
-  "build": {
-    "appId": "com.dblanchemain.mcmidikeyboard",
-    "productName": "mcMidiKeyboard",
-    "linux": {
-      "target": ["AppImage", "deb"],
-      "category": "Audio",
-      "icon": "images"
-    },
-    "files": [
-      "**/*",
-      "!**/.git/**",
-      "!node_modules/.cache/**",
-      "!dist/**",
-      "!test.json"
-    ],
-    "extraResources": [
-      { "from": "python", "to": "python" }
-    ]
+  "config": {
+    "forge": "./forge.config.js"
   },
   "keywords": [],
   "author": "D.Blanchemain",
   "license": "GPL-3.0-or-later",
   "devDependencies": {
-    "electron": "^33.0.0",
-    "electron-builder": "^25.0.0"
+    "@electron-forge/cli": "^7.2.0",
+    "@electron-forge/maker-deb": "^7.2.0",
+    "@electron-forge/maker-rpm": "^7.2.0",
+    "@electron-forge/maker-squirrel": "^7.2.0",
+    "@electron-forge/maker-zip": "^7.2.0",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.2.0",
+    "electron": "^33.0.0"
   },
-  "allowScripts": {
-    "electron@33.4.11": true
+  "dependencies": {
+    "electron-squirrel-startup": "^1.0.0"
   }
 }

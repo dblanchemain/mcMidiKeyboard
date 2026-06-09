@@ -62,7 +62,8 @@ function createWindow() {
 
 function startAudioServer() {
   if (audioProcess) return;
-  const script = path.join(__dirname, 'python', 'audio_server.py');
+  const base   = app.isPackaged ? process.resourcesPath : __dirname;
+  const script = path.join(base, 'python', 'audio_server.py');
   audioProcess = spawn('python3', [script], {
     stdio: ['pipe', 'pipe', 'pipe'],
   });

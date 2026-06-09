@@ -16,18 +16,56 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Node dependencies
+      - name: Dépendances système (deb + rpm)
+        run: sudo apt-get install -y fakeroot rpm
+
+      - name: npm install
         run: npm install
 
-      - name: Build AppImage + deb
-        run: npx electron-builder --linux AppImage deb
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: electron-forge make (deb, rpm, zip)
+        run: npx electron-forge make
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: mcMidiKeyboard-linux
-          path: |
-            dist/*.AppImage
-            dist/*.deb
+          name: linux
+          path: out/make/**/*
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: npm install
+        run: npm install
+
+      - name: electron-forge make (squirrel, zip)
+        run: npx electron-forge make
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: out/make/**/*
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: npm install
+        run: npm install
+
+      - name: electron-forge make (zip)
+        run: npx electron-forge make --targets @electron-forge/maker-zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: out/make/**/*
