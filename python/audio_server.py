@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 mcMidiKeyboard — audio_server.py
-Lecture multicanalien de fichiers audio via JACK (Linux) ou sounddevice (autres OS).
+Lecture multicanalien polyphonique via JACK (Linux) ou sounddevice (autres OS).
 Protocole : JSON line-delimited sur stdin/stdout.
 License: GPL-3.0-or-later — D.Blanchemain
 """
@@ -17,20 +17,17 @@ import numpy as np
 
 # ── Détection plateforme ──────────────────────────────────────────────────────
 
-PLATFORM = platform.system()  # 'Linux', 'Windows', 'Darwin'
+PLATFORM = platform.system()
 USE_JACK  = PLATFORM == 'Linux'
-
-# ── Backend audio ─────────────────────────────────────────────────────────────
 
 if USE_JACK:
     try:
         import jack
         import soundfile as sf
         BACKEND = 'jack'
-    except ImportError as e:
+    except ImportError:
         USE_JACK = False
         BACKEND  = 'sounddevice'
-        _jack_import_error = str(e)
 else:
     BACKEND = 'sounddevice'
 
@@ -39,18 +36,19 @@ if BACKEND == 'sounddevice':
         import sounddevice as sd
         import soundfile as sf
     except ImportError as e:
-        emit({'type': 'error', 'message': f'Import sounddevice/soundfile : {e}'})
+        sys.stdout.write(json.dumps({'type': 'error', 'message': str(e)}) + '\n')
+        sys.stdout.flush()
         sys.exit(1)
 
 # ── Communication JSON ────────────────────────────────────────────────────────
 
 def emit(obj):
-    """Envoyer un message JSON au processus Electron."""
     sys.stdout.write(json.dumps(obj) + '\n')
     sys.stdout.flush()
 
+cmd_queue = queue.Queue()
+
 def read_stdin():
-    """Lire stdin ligne par ligne et pousser dans la queue."""
     for line in sys.stdin:
         line = line.strip()
         if line:
@@ -59,28 +57,88 @@ def read_stdin():
             except json.JSONDecodeError:
                 pass
 
-cmd_queue = queue.Queue()
+# ── Voice : une instance de lecture ──────────────────────────────────────────
 
-# ── État des pistes ───────────────────────────────────────────────────────────
+RELEASE_FRAMES = 2205  # ~50 ms à 44100 Hz — fade-out sur Note Off
+
+class Voice:
+    """Une voix polyphonique indépendante."""
+    __slots__ = ('data', 'envelope', 'gain', 'n_ch', 'n_frames',
+                 'pos', 'active', 'releasing', 'release_pos')
+
+    def __init__(self, data, envelope, gain):
+        self.data        = data       # np.ndarray (frames × ch), partagé read-only
+        self.envelope    = envelope   # np.ndarray (frames,),     partagé read-only
+        self.gain        = gain
+        self.n_ch        = data.shape[1]
+        self.n_frames    = data.shape[0]
+        self.pos         = 0
+        self.active      = True
+        self.releasing   = False      # True → fade-out court en cours
+        self.release_pos = 0          # frames écoulées depuis le début du release
+
+    def release(self):
+        """Déclencher le fade-out (Note Off)."""
+        if not self.releasing:
+            self.releasing   = True
+            self.release_pos = 0
+
+    def render(self, out_buffers, frames, max_ch):
+        """Écrire dans out_buffers. Retourne False quand la voix est terminée."""
+        if not self.active:
+            return False
+
+        remaining = self.n_frames - self.pos
+        if remaining <= 0:
+            self.active = False
+            return False
+
+        chunk_len = min(frames, remaining)
+        chunk     = self.data[self.pos: self.pos + chunk_len]          # (L, ch)
+        env_chunk = self.envelope[self.pos: self.pos + chunk_len]      # (L,)
+        amp       = self.gain
+
+        # Appliquer le fade-out de release si Note Off reçu
+        if self.releasing:
+            r_remaining = max(RELEASE_FRAMES - self.release_pos, 0)
+            fade_len    = min(chunk_len, r_remaining)
+            if r_remaining > 0:
+                fade = np.linspace(1.0, 0.0, r_remaining, dtype=np.float32)
+                env_chunk = env_chunk.copy()
+                env_chunk[:fade_len] *= fade[:fade_len]
+            if chunk_len > r_remaining:
+                # fade terminé, couper le reste
+                chunk_len = fade_len if fade_len > 0 else 0
+                self.active = False
+            self.release_pos += chunk_len
+
+        n_ch = min(self.n_ch, max_ch)
+        for ch in range(n_ch):
+            out_buffers[ch][:chunk_len] += chunk[:chunk_len, ch] * env_chunk[:chunk_len] * amp
+
+        self.pos += chunk_len
+        if self.pos >= self.n_frames:
+            self.active = False
+        return self.active
+
+# ── Track : piste du tableau (une ligne = un fichier + paramètres) ────────────
 
 class Track:
-    """Représente une ligne du tableau mcMidiKeyboard."""
     def __init__(self, row_id):
-        self.id       = row_id
-        self.key      = ''
-        self.file     = ''
-        self.gain     = 1.0        # dB (−10 … 10), 1 = 0 dB (en fait valeur directe)
+        self.id        = row_id
+        self.file      = ''
+        self.gain      = 1.0
         self.fade_type = 'l'
-        self.fade_in  = 0.1       # secondes
-        self.fade_out = 0.1       # secondes
-        # données audio
-        self.data     = None      # np.ndarray (frames × channels)
-        self.sr       = 44100
-        self.channels = 1
-        # état de lecture
-        self.playing  = False
-        self.pos      = 0         # position en frames
-        self.lock     = threading.Lock()
+        self.fade_in   = 0.1
+        self.fade_out  = 0.1
+        self.data      = None   # np.ndarray partagé, read-only après chargement
+        self.sr        = 44100
+        self.lock      = threading.Lock()
+        self.voices    = []     # list[Voice]
+        self._env_cache    = None
+        self._env_cache_key = None
+
+    # ── Chargement ──────────────────────────────────────────────────────────
 
     def load(self):
         if not self.file or not os.path.exists(self.file):
@@ -88,62 +146,86 @@ class Track:
         try:
             data, sr = sf.read(self.file, always_2d=True, dtype='float32')
             with self.lock:
-                self.data     = data
-                self.sr       = sr
-                self.channels = data.shape[1]
+                self.data = data
+                self.sr   = sr
+                self._env_cache     = None   # invalider le cache
+                self._env_cache_key = None
             return True
         except Exception as e:
             emit({'type': 'error', 'message': f'Lecture {self.file} : {e}'})
             return False
 
-    def gain_linear(self):
-        """Convertit la valeur gain (−10..10, 1=neutre) en linéaire."""
-        # Interprétation : la valeur est en dB relatif à la valeur 1 = 0 dB
-        # gain=1 → 0 dB → amplitude 1.0
-        # gain=10 → +20 dB (par exemple) — on fait : dB = (gain-1)*2
-        db = (self.gain - 1) * 2.0
-        return 10 ** (db / 20.0)
+    # ── Enveloppe (mise en cache) ─────────────────────────────────────────
 
-    def compute_envelope(self, n_frames):
-        """Calcule l'enveloppe fade-in/fade-out pour n_frames frames."""
-        fi = int(self.fade_in  * self.sr)
-        fo = int(self.fade_out * self.sr)
-        fi = min(fi, n_frames)
-        fo = min(fo, n_frames - fi)
-        env = np.ones(n_frames, dtype=np.float32)
+    def _build_envelope(self):
+        n  = len(self.data)
+        fi = min(int(self.fade_in  * self.sr), n)
+        fo = min(int(self.fade_out * self.sr), n - fi)
+        env = np.ones(n, dtype=np.float32)
         if fi > 0:
-            t = np.linspace(0, 1, fi, dtype=np.float32)
-            env[:fi] = self._fade_curve(t)
+            env[:fi] = self._fade_curve(np.linspace(0, 1, fi, dtype=np.float32))
         if fo > 0:
-            t = np.linspace(1, 0, fo, dtype=np.float32)
-            env[n_frames - fo:] *= self._fade_curve(t)
+            env[n - fo:] *= self._fade_curve(np.linspace(1, 0, fo, dtype=np.float32))
         return env
 
     def _fade_curve(self, t):
         ft = self.fade_type
-        if ft == 'q':
-            return np.sin(t * (np.pi / 2))
-        elif ft == 'h':
-            return np.sin(t * np.pi)
-        elif ft == 't':
-            return t
-        elif ft == 'l':
-            return np.log1p(t * (math.e - 1))
-        elif ft == 'p':
-            return 1 - (1 - t) ** 2
+        if ft == 'q': return np.sin(t * (np.pi / 2))
+        if ft == 'h': return np.sin(t * np.pi)
+        if ft == 't': return t
+        if ft == 'l': return np.log1p(t * (math.e - 1))
+        if ft == 'p': return 1 - (1 - t) ** 2
         return t
 
+    def _get_envelope(self):
+        key = (len(self.data), self.sr, self.fade_in, self.fade_out, self.fade_type)
+        if self._env_cache_key != key:
+            self._env_cache     = self._build_envelope()
+            self._env_cache_key = key
+        return self._env_cache
+
+    # ── Gain ─────────────────────────────────────────────────────────────
+
+    def gain_linear(self):
+        db = (self.gain - 1) * 2.0
+        return 10 ** (db / 20.0)
+
+    # ── Contrôle ─────────────────────────────────────────────────────────
+
     def start(self):
+        """Note On → nouvelle voix (polyphonie)."""
         with self.lock:
-            self.pos     = 0
-            self.playing = True
+            if self.data is None:
+                return
+            env   = self._get_envelope()
+            voice = Voice(self.data, env, self.gain_linear())
+            self.voices.append(voice)
 
     def stop(self):
+        """Note Off → fade-out sur toutes les voix actives."""
         with self.lock:
-            self.playing = False
+            for v in self.voices:
+                v.release()
+
+    def stop_hard(self):
+        """Arrêt immédiat (suppression de piste)."""
+        with self.lock:
+            for v in self.voices:
+                v.active = False
+            self.voices.clear()
+
+    def render_all(self, out_buffers, frames, max_ch):
+        """Rendre toutes les voix actives, nettoyer les voix terminées."""
+        with self.lock:
+            self.voices = [v for v in self.voices if v.active]
+            for v in self.voices:
+                v.render(out_buffers, frames, max_ch)
+            self.voices = [v for v in self.voices if v.active]
 
 
-tracks = {}   # id → Track
+# ── Registre global des pistes ────────────────────────────────────────────────
+
+tracks      = {}
 tracks_lock = threading.Lock()
 
 def get_or_create(row_id):
@@ -152,68 +234,37 @@ def get_or_create(row_id):
             tracks[row_id] = Track(row_id)
         return tracks[row_id]
 
+def snapshot_tracks():
+    with tracks_lock:
+        return list(tracks.values())
 
 # ══════════════════════════════════════════════════════════════════════════════
 # BACKEND JACK
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_jack():
-    client = jack.Client('mcMidiKeyboard')
-
-    # Ports de sortie : on crée un max de ports au démarrage
-    # et on route dynamiquement selon le nombre de canaux des fichiers.
+    client    = jack.Client('mcMidiKeyboard')
     MAX_PORTS = 16
-    out_ports = []
-    for i in range(MAX_PORTS):
-        p = client.outports.register(f'out_{i+1}')
-        out_ports.append(p)
+    out_ports = [client.outports.register(f'out_{i+1}') for i in range(MAX_PORTS)]
 
     @client.set_process_callback
     def process(frames):
-        # Initialiser les buffers à zéro
         buffers = [np.frombuffer(p.get_buffer(), dtype=np.float32) for p in out_ports]
         for b in buffers:
             b[:] = 0.0
 
-        with tracks_lock:
-            active = [t for t in tracks.values() if t.playing and t.data is not None]
-
-        for track in active:
-            with track.lock:
-                if not track.playing or track.data is None:
-                    continue
-                remaining = len(track.data) - track.pos
-                if remaining <= 0:
-                    track.playing = False
-                    continue
-                chunk_len = min(frames, remaining)
-                chunk = track.data[track.pos: track.pos + chunk_len]  # (frames, ch)
-
-                # Enveloppe fade calculée sur tout le fichier pour la cohérence
-                env_full  = track.compute_envelope(len(track.data))
-                env_chunk = env_full[track.pos: track.pos + chunk_len]
-
-                gain = track.gain_linear()
-                n_ch = min(track.channels, MAX_PORTS)
-
-                for ch in range(n_ch):
-                    buf = buffers[ch]
-                    buf[:chunk_len] += chunk[:, ch] * env_chunk * gain
-
-                track.pos += chunk_len
-                if track.pos >= len(track.data):
-                    track.playing = False
+        for track in snapshot_tracks():
+            track.render_all(buffers, frames, MAX_PORTS)
 
     @client.set_shutdown_callback
     def shutdown(status, reason):
         emit({'type': 'error', 'message': f'JACK shutdown : {reason}'})
 
     with client:
-        # Connecter aux sorties système si possible
         try:
-            target = client.get_ports('system:playback_.*', is_input=True)
-            for i, t in enumerate(target):
-                if i < len(out_ports):
+            targets = client.get_ports('system:playback_.*', is_input=True)
+            for i, t in enumerate(targets):
+                if i < MAX_PORTS:
                     client.connect(out_ports[i], t)
         except Exception:
             pass
@@ -221,50 +272,28 @@ def run_jack():
         emit({'type': 'ready', 'backend': 'jack'})
         process_commands()
 
-
 # ══════════════════════════════════════════════════════════════════════════════
 # BACKEND sounddevice
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_sounddevice():
-    SR = 44100
+    SR    = 44100
     BLOCK = 1024
 
     def audio_callback(outdata, frames, time_info, status):
         outdata[:] = 0.0
-        n_out_ch = outdata.shape[1]
+        n_out = outdata.shape[1]
 
-        with tracks_lock:
-            active = [t for t in tracks.values() if t.playing and t.data is not None]
-
-        for track in active:
-            with track.lock:
-                if not track.playing or track.data is None:
-                    continue
-                # Rééchantillonnage simple si SR différent (non implémenté ici)
-                remaining = len(track.data) - track.pos
-                if remaining <= 0:
-                    track.playing = False
-                    continue
-                chunk_len = min(frames, remaining)
-                chunk = track.data[track.pos: track.pos + chunk_len]
-
-                env_full  = track.compute_envelope(len(track.data))
-                env_chunk = env_full[track.pos: track.pos + chunk_len]
-
-                gain = track.gain_linear()
-                n_ch = min(track.channels, n_out_ch)
-
-                for ch in range(n_ch):
-                    outdata[:chunk_len, ch] += chunk[:, ch] * env_chunk * gain
-
-                track.pos += chunk_len
-                if track.pos >= len(track.data):
-                    track.playing = False
+        # Construire des buffers numpy séparés puis copier
+        bufs = [np.zeros(frames, dtype=np.float32) for _ in range(n_out)]
+        for track in snapshot_tracks():
+            track.render_all(bufs, frames, n_out)
+        for ch in range(n_out):
+            outdata[:, ch] += bufs[ch]
 
     try:
-        device_info = sd.query_devices(kind='output')
-        n_out = min(device_info.get('max_output_channels', 2), 16)
+        info  = sd.query_devices(kind='output')
+        n_out = min(info.get('max_output_channels', 2), 16)
     except Exception:
         n_out = 2
 
@@ -273,7 +302,6 @@ def run_sounddevice():
                          callback=audio_callback):
         emit({'type': 'ready', 'backend': 'sounddevice'})
         process_commands()
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Traitement des commandes
@@ -286,7 +314,7 @@ def process_commands():
         except queue.Empty:
             continue
 
-        cmd = msg.get('cmd')
+        cmd    = msg.get('cmd')
         row_id = msg.get('id')
 
         if cmd == 'quit':
@@ -295,11 +323,12 @@ def process_commands():
         elif cmd == 'update':
             track = get_or_create(row_id)
             old_file = track.file
-            track.key       = msg.get('key', '')
             track.gain      = float(msg.get('gain', 1))
             track.fade_type = msg.get('fadeType', 'l')
-            track.fade_in   = float(msg.get('fadeIn', 0.1))
+            track.fade_in   = float(msg.get('fadeIn',  0.1))
             track.fade_out  = float(msg.get('fadeOut', 0.1))
+            with track.lock:
+                track._env_cache_key = None   # invalider le cache fade
             new_file = msg.get('file', '')
             if new_file and new_file != old_file:
                 track.file = new_file
@@ -309,7 +338,7 @@ def process_commands():
             with tracks_lock:
                 t = tracks.pop(row_id, None)
             if t:
-                t.stop()
+                t.stop_hard()
 
         elif cmd == 'play':
             track = get_or_create(row_id)
@@ -318,17 +347,12 @@ def process_commands():
             track.start()
 
         elif cmd == 'stop':
-            track = get_or_create(row_id)
-            track.stop()
+            get_or_create(row_id).stop()
 
-
-# ── Entrée ────────────────────────────────────────────────────────────────────
+# ── Point d'entrée ────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
-    # Lancer la lecture de stdin dans un thread séparé
-    t = threading.Thread(target=read_stdin, daemon=True)
-    t.start()
-
+    threading.Thread(target=read_stdin, daemon=True).start()
     if USE_JACK:
         run_jack()
     else:
