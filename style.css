@@ -74,18 +74,42 @@ tbody tr { border-bottom: 1px solid var(--border); }
 tbody tr:hover { background: rgba(122,162,247,.06); }
 td { padding: 4px 6px; vertical-align: middle; }
 
-/* Touche key */
-.key-cell input[type=text] {
-  width: 54px;
+/* Note MIDI */
+.key-inner {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.key-cell input[type=number] {
+  width: 52px;
   text-align: center;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   background: var(--bg);
   border: 1px solid var(--border);
   color: var(--text);
   border-radius: 4px;
-  padding: 3px;
+  padding: 3px 4px;
 }
+.key-cell input[type=number]::-webkit-inner-spin-button { opacity: 0.4; }
+.key-name {
+  font-size: 11px;
+  color: var(--accent);
+  min-width: 28px;
+  font-weight: 600;
+}
+.learn-btn {
+  padding: 1px 5px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.learn-btn.learning {
+  background: var(--red);
+  border-color: var(--red);
+  color: #fff;
+  animation: blink 0.7s step-start infinite;
+}
+@keyframes blink { 50% { opacity: 0.3; } }
 
 /* Fichier */
 .file-cell { display: flex; align-items: center; gap: 4px; }

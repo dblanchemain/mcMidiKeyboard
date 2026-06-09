@@ -2,9 +2,22 @@
 // License: GPL-3.0-or-later — D.Blanchemain
 
 // ── État global ──────────────────────────────────────────────────────────────
-// Chaque ligne : { id, key, file, gain, fadeType, fadeIn, fadeOut }
+// Chaque ligne : { id, key (numéro MIDI 0-127 ou null), file, gain, fadeType, fadeIn, fadeOut }
 let rows = [];
 let nextId = 0;
+
+// Id de la ligne en attente de MIDI Learn (null = pas en mode learn)
+let midiLearnTarget = null;
+
+// ── Noms de notes MIDI ────────────────────────────────────────────────────────
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+function midiToName(n) {
+  if (n === null || n === undefined || n === '') return '—';
+  n = parseInt(n);
+  if (isNaN(n) || n < 0 || n > 127) return '?';
+  return NOTE_NAMES[n % 12] + (Math.floor(n / 12) - 1);
+}
 
 // ── Constantes bouton rotatif ────────────────────────────────────────────────
 const KNOB_MIN = -10;
@@ -159,9 +172,12 @@ document.getElementById('modalOk').addEventListener('click', () => {
 
 function makeRow(data = {}) {
   const id = nextId++;
+  const rawKey = data.key;
+  const key = (rawKey !== undefined && rawKey !== null && rawKey !== '')
+    ? parseInt(rawKey) : null;
   const row = {
     id,
-    key:      data.key      ?? '',
+    key:      isNaN(key) ? null : key,
     file:     data.file     ?? '',
     gain:     data.gain     != null ? data.gain : 1,
     fadeType: data.fadeType ?? 'l',
@@ -180,7 +196,13 @@ function renderRow(row) {
 
   tr.innerHTML = `
     <td class="key-cell">
-      <input type="text" maxlength="1" placeholder="?" value="${escHtml(row.key)}" data-id="${row.id}" class="key-input"/>
+      <div class="key-inner">
+        <input type="number" min="0" max="127" step="1"
+               placeholder="—" value="${row.key !== null ? row.key : ''}"
+               data-id="${row.id}" class="key-input"/>
+        <span class="key-name" data-id="${row.id}">${midiToName(row.key)}</span>
+        <button class="learn-btn" data-id="${row.id}" title="MIDI Learn">L</button>
+      </div>
     </td>
     <td class="file-cell">
       <button class="pick-file" data-id="${row.id}">…</button>
@@ -215,19 +237,13 @@ function renderRow(row) {
   tr.querySelector('.pick-file').addEventListener('click', () => pickFile(row.id));
   tr.querySelector('.fade-btn').addEventListener('click', () => openFadeModal(row.id));
   tr.querySelector('.del-btn').addEventListener('click', () => deleteRow(row.id));
+  tr.querySelector('.learn-btn').addEventListener('click', () => toggleLearn(row.id));
+
   tr.querySelector('.key-input').addEventListener('input', (e) => {
-    row.key = e.target.value.slice(-1);
-    e.target.value = row.key;
+    const v = e.target.value.trim();
+    row.key = v === '' ? null : Math.max(0, Math.min(127, parseInt(v) || 0));
+    updateKeyName(row);
     sendRowUpdate(row);
-  });
-  tr.querySelector('.key-input').addEventListener('keydown', (e) => {
-    // Capturer la touche MIDI / clavier directement
-    if (e.key.length === 1) {
-      row.key = e.key;
-      e.target.value = e.key;
-      sendRowUpdate(row);
-      e.preventDefault();
-    }
   });
 }
 
@@ -275,6 +291,88 @@ function updateKnob(row) {
   img.style.transform = `rotate(${gainToDeg(row.gain)}deg)`;
   val.textContent = Number(row.gain).toFixed(1);
 }
+
+// ── MIDI Learn ───────────────────────────────────────────────────────────────
+
+function toggleLearn(id) {
+  const prev = midiLearnTarget;
+  // Sortir du mode learn sur l'ancienne ligne
+  if (prev !== null) {
+    const old = document.querySelector(`tr[data-id="${prev}"] .learn-btn`);
+    if (old) old.classList.remove('learning');
+  }
+  midiLearnTarget = (prev === id) ? null : id;
+  if (midiLearnTarget !== null) {
+    const btn = document.querySelector(`tr[data-id="${id}"] .learn-btn`);
+    if (btn) btn.classList.add('learning');
+  }
+}
+
+function applyMidiLearn(note) {
+  if (midiLearnTarget === null) return;
+  const row = rows.find(r => r.id === midiLearnTarget);
+  if (!row) { midiLearnTarget = null; return; }
+  row.key = note;
+  const tr = document.querySelector(`tr[data-id="${row.id}"]`);
+  if (tr) {
+    tr.querySelector('.key-input').value = note;
+    tr.querySelector('.learn-btn').classList.remove('learning');
+  }
+  updateKeyName(row);
+  sendRowUpdate(row);
+  midiLearnTarget = null;
+}
+
+function updateKeyName(row) {
+  const span = document.querySelector(`.key-name[data-id="${row.id}"]`);
+  if (span) span.textContent = midiToName(row.key);
+}
+
+// ── WebMIDI ───────────────────────────────────────────────────────────────────
+
+function initMidi() {
+  if (!navigator.requestMIDIAccess) {
+    console.warn('WebMIDI non disponible');
+    return;
+  }
+  navigator.requestMIDIAccess({ sysex: false }).then((access) => {
+    const status = document.getElementById('midiStatus');
+    function connectAll() {
+      let count = 0;
+      for (const input of access.inputs.values()) {
+        input.onmidimessage = onMidiMessage;
+        count++;
+      }
+      if (status) status.textContent = `MIDI: ${count} entrée(s)`;
+    }
+    connectAll();
+    access.onstatechange = connectAll;
+  }).catch((err) => {
+    console.warn('MIDI access refusé :', err);
+  });
+}
+
+function onMidiMessage(e) {
+  const [status, note, velocity] = e.data;
+  const type = status & 0xf0;
+
+  if (type === 0x90 && velocity > 0) {
+    // Note On
+    if (midiLearnTarget !== null) {
+      applyMidiLearn(note);
+      return;
+    }
+    const row = rows.find(r => r.key === note);
+    if (row && row.file) window.api.sendAudio({ cmd: 'play', id: row.id });
+
+  } else if (type === 0x80 || (type === 0x90 && velocity === 0)) {
+    // Note Off
+    const row = rows.find(r => r.key === note);
+    if (row) window.api.sendAudio({ cmd: 'stop', id: row.id });
+  }
+}
+
+initMidi();
 
 // ── Fichier ──────────────────────────────────────────────────────────────────
 
@@ -387,21 +485,10 @@ document.getElementById('btnLoad').addEventListener('click', async () => {
 // ── Ajout ligne ───────────────────────────────────────────────────────────────
 document.getElementById('btnAddRow').addEventListener('click', () => makeRow());
 
-// ── Clavier MIDI (clavier physique → déclenchement) ──────────────────────────
+// Appuyer sur Échap annule le MIDI Learn en cours
 document.addEventListener('keydown', (e) => {
-  if (e.target.classList.contains('key-input')) return;  // ne pas interférer avec l'édition
-  if (e.repeat) return;
-  const row = rows.find(r => r.key === e.key);
-  if (row && row.file) {
-    window.api.sendAudio({ cmd: 'play', id: row.id });
-  }
-});
-
-document.addEventListener('keyup', (e) => {
-  if (e.repeat) return;
-  const row = rows.find(r => r.key === e.key);
-  if (row) {
-    window.api.sendAudio({ cmd: 'stop', id: row.id });
+  if (e.key === 'Escape' && midiLearnTarget !== null) {
+    toggleLearn(midiLearnTarget);
   }
 });
 
