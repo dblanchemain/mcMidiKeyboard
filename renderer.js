@@ -364,7 +364,10 @@ function onMidiMessage(e) {
       return;
     }
     const row = rows.find(r => r.key === note);
-    if (row && row.file) window.api.sendAudio({ cmd: 'play', id: row.id });
+    if (row && row.file) {
+      window.api.sendAudio({ cmd: 'play', id: row.id, velocity });
+      setRowActive(row.id, true);
+    }
 
   } else if (type === 0x80 || (type === 0x90 && velocity === 0)) {
     // Note Off
@@ -425,6 +428,13 @@ function sendRowUpdate(row) {
   });
 }
 
+// ── Indicateur visuel actif/inactif ──────────────────────────────────────────
+
+function setRowActive(id, active) {
+  const tr = document.querySelector(`tr[data-id="${id}"]`);
+  if (tr) tr.classList.toggle('row-active', active);
+}
+
 // ── Événements audio ─────────────────────────────────────────────────────────
 
 window.api.onAudioEvent((msg) => {
@@ -435,6 +445,8 @@ window.api.onAudioEvent((msg) => {
   } else if (msg.type === 'error') {
     status.textContent = 'audio: erreur — ' + msg.message;
     status.className   = 'status err';
+  } else if (msg.type === 'voice_end') {
+    setRowActive(msg.id, false);
   }
 });
 

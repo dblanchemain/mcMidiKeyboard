@@ -46,7 +46,16 @@ def emit(obj):
     sys.stdout.write(json.dumps(obj) + '\n')
     sys.stdout.flush()
 
-cmd_queue = queue.Queue()
+cmd_queue   = queue.Queue()
+event_queue = queue.Queue()  # événements audio → renderer (thread-safe)
+
+def event_emitter():
+    """Draine event_queue vers stdout sans bloquer le callback audio."""
+    while True:
+        try:
+            emit(event_queue.get(timeout=1))
+        except queue.Empty:
+            pass
 
 def read_stdin():
     for line in sys.stdin:
@@ -66,10 +75,10 @@ class Voice:
     __slots__ = ('data', 'envelope', 'gain', 'n_ch', 'n_frames',
                  'pos', 'active', 'releasing', 'release_pos')
 
-    def __init__(self, data, envelope, gain):
+    def __init__(self, data, envelope, gain, velocity=127):
         self.data        = data       # np.ndarray (frames × ch), partagé read-only
         self.envelope    = envelope   # np.ndarray (frames,),     partagé read-only
-        self.gain        = gain
+        self.gain        = gain * max(0.0, min(1.0, velocity / 127.0))
         self.n_ch        = data.shape[1]
         self.n_frames    = data.shape[0]
         self.pos         = 0
@@ -192,13 +201,13 @@ class Track:
 
     # ── Contrôle ─────────────────────────────────────────────────────────
 
-    def start(self):
+    def start(self, velocity=127):
         """Note On → nouvelle voix (polyphonie)."""
         with self.lock:
             if self.data is None:
                 return
             env   = self._get_envelope()
-            voice = Voice(self.data, env, self.gain_linear())
+            voice = Voice(self.data, env, self.gain_linear(), velocity)
             self.voices.append(voice)
 
     def stop(self):
@@ -217,10 +226,12 @@ class Track:
     def render_all(self, out_buffers, frames, max_ch):
         """Rendre toutes les voix actives, nettoyer les voix terminées."""
         with self.lock:
-            self.voices = [v for v in self.voices if v.active]
+            had_voices = bool(self.voices)
             for v in self.voices:
                 v.render(out_buffers, frames, max_ch)
             self.voices = [v for v in self.voices if v.active]
+            if had_voices and not self.voices:
+                event_queue.put({'type': 'voice_end', 'id': self.id})
 
 
 # ── Registre global des pistes ────────────────────────────────────────────────
@@ -341,10 +352,11 @@ def process_commands():
                 t.stop_hard()
 
         elif cmd == 'play':
-            track = get_or_create(row_id)
+            track    = get_or_create(row_id)
+            velocity = int(msg.get('velocity', 127))
             if track.data is None and track.file:
                 track.load()
-            track.start()
+            track.start(velocity)
 
         elif cmd == 'stop':
             get_or_create(row_id).stop()
@@ -352,7 +364,8 @@ def process_commands():
 # ── Point d'entrée ────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
-    threading.Thread(target=read_stdin, daemon=True).start()
+    threading.Thread(target=read_stdin,    daemon=True).start()
+    threading.Thread(target=event_emitter, daemon=True).start()
     if USE_JACK:
         run_jack()
     else:

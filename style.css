@@ -72,6 +72,8 @@ thead th {
 }
 tbody tr { border-bottom: 1px solid var(--border); }
 tbody tr:hover { background: rgba(122,162,247,.06); }
+tbody tr.row-active { background: rgba(166,227,161,.10); }
+tbody tr.row-active td:first-child { border-left: 3px solid var(--green); }
 td { padding: 4px 6px; vertical-align: middle; }
 
 /* Note MIDI */
