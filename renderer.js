@@ -22,17 +22,22 @@ function midiToName(n) {
 // ── Constantes bouton rotatif ────────────────────────────────────────────────
 const KNOB_MIN = -10;
 const KNOB_MAX = 10;
-// gain=1 → 0° (marqueur en haut)
-// gain=-10 → -94.5° (15% de la course de 270°)
-// gain=+10 → +94.5° (85% de la course)
+// gain=1 → marqueur en haut (0° visuel)
+// gain=-10 → 15% de la course → -94.5° visuel
+// gain=+10 → 85% de la course → +94.5° visuel
+// Le marqueur SVG est à -12° à rotation CSS 0° → offset +12° pour centrer
 // Interpolation bilinéaire : pivot à 1
 
+const KNOB_SVG_OFFSET = 12;
+
 function gainToDeg(gain) {
+  let deg;
   if (gain <= 1) {
-    return (gain - 1) / (1 - KNOB_MIN) * 94.5;  // 1→0°, -10→-94.5°
+    deg = (gain - 1) / (1 - KNOB_MIN) * 94.5;
   } else {
-    return (gain - 1) / (KNOB_MAX - 1) * 94.5;  // 1→0°, +10→+94.5°
+    deg = (gain - 1) / (KNOB_MAX - 1) * 94.5;
   }
+  return deg + KNOB_SVG_OFFSET;
 }
 
 // ── Modal fade-in/out ────────────────────────────────────────────────────────
