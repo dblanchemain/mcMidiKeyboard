@@ -1,10 +1,10 @@
 module.exports = {
   packagerConfig: {
     asar: true,
-    extraResource: ['python'],
+    extraResource: ['python', 'resources'],
     name: 'mcMidiKeyboard',
     executableName: 'mc-midi-keyboard',
-    icon: 'images/icon',   // .ico (win), .icns (mac), .png (linux)
+    icon: 'resources/icon',   // .ico (win), .icns (mac), .png (linux)
   },
   rebuildConfig: {},
   makers: [
