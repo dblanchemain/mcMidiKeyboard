@@ -142,6 +142,7 @@ class Track:
         self.fade_out  = 0.1
         self.data      = None   # np.ndarray partagé, read-only après chargement
         self.sr        = 44100
+        self.one_shot  = False  # True → Note Off ignoré, joue jusqu'à la fin
         self.lock      = threading.Lock()
         self.voices    = []     # list[Voice]
         self._env_cache    = None
@@ -338,6 +339,7 @@ def process_commands():
             track.fade_type = msg.get('fadeType', 'l')
             track.fade_in   = float(msg.get('fadeIn',  0.1))
             track.fade_out  = float(msg.get('fadeOut', 0.1))
+            track.one_shot  = bool(msg.get('oneShot', False))
             with track.lock:
                 track._env_cache_key = None   # invalider le cache fade
             new_file = msg.get('file', '')
@@ -359,7 +361,9 @@ def process_commands():
             track.start(velocity)
 
         elif cmd == 'stop':
-            get_or_create(row_id).stop()
+            track = get_or_create(row_id)
+            if not track.one_shot:
+                track.stop()
 
 # ── Point d'entrée ────────────────────────────────────────────────────────────
 

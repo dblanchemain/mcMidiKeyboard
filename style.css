@@ -164,6 +164,26 @@ td { padding: 4px 6px; vertical-align: middle; }
 }
 .fade-cell button { padding: 1px 5px; font-size: 11px; }
 
+/* Mode one-shot / sustain */
+.mode-cell { text-align: center; }
+.mode-toggle { cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.mode-toggle input { display: none; }
+.mode-label {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  user-select: none;
+}
+.mode-toggle input:checked + .mode-label {
+  background: rgba(249,226,175,.15);
+  border-color: #f9e2af;
+  color: #f9e2af;
+}
+
 /* delete btn */
 .del-btn {
   background: transparent;

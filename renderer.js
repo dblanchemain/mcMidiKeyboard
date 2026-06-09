@@ -184,6 +184,7 @@ function makeRow(data = {}) {
     fadeType: data.fadeType ?? 'l',
     fadeIn:   data.fadeIn   ?? 0.1,
     fadeOut:  data.fadeOut  ?? 0.1,
+    oneShot:  data.oneShot  ?? false,
   };
   rows.push(row);
   renderRow(row);
@@ -227,6 +228,12 @@ function renderRow(row) {
     </td>
     <td><span class="fadeInDisp" data-id="${row.id}">${Number(row.fadeIn).toFixed(2)}s</span></td>
     <td><span class="fadeOutDisp" data-id="${row.id}">${Number(row.fadeOut).toFixed(2)}s</span></td>
+    <td class="mode-cell">
+      <label class="mode-toggle" title="One-shot : joue jusqu'à la fin&#10;Sustain : s'arrête au Note Off">
+        <input type="checkbox" class="oneshot-chk" data-id="${row.id}" ${row.oneShot ? 'checked' : ''}/>
+        <span class="mode-label">${row.oneShot ? '1shot' : 'sust'}</span>
+      </label>
+    </td>
     <td><button class="del-btn" data-id="${row.id}" title="Supprimer">×</button></td>
   `;
   tbody.appendChild(tr);
@@ -244,6 +251,12 @@ function renderRow(row) {
     const v = e.target.value.trim();
     row.key = v === '' ? null : Math.max(0, Math.min(127, parseInt(v) || 0));
     updateKeyName(row);
+    sendRowUpdate(row);
+  });
+
+  tr.querySelector('.oneshot-chk').addEventListener('change', (e) => {
+    row.oneShot = e.target.checked;
+    e.target.nextElementSibling.textContent = row.oneShot ? '1shot' : 'sust';
     sendRowUpdate(row);
   });
 }
@@ -425,6 +438,7 @@ function sendRowUpdate(row) {
     fadeType: row.fadeType,
     fadeIn:   row.fadeIn,
     fadeOut:  row.fadeOut,
+    oneShot:  row.oneShot,
   });
 }
 
@@ -463,8 +477,8 @@ window.api.onLoadDescriptor((data) => {
 document.getElementById('btnSave').addEventListener('click', async () => {
   const { ipcRenderer } = require === undefined ? {} : {};
   // Utiliser showSaveDialog via preload n'est pas exposé — on download
-  const json = JSON.stringify(rows.map(({ key, file, gain, fadeType, fadeIn, fadeOut }) =>
-    ({ key, file, gain, fadeType, fadeIn, fadeOut })), null, 2);
+  const json = JSON.stringify(rows.map(({ key, file, gain, fadeType, fadeIn, fadeOut, oneShot }) =>
+    ({ key, file, gain, fadeType, fadeIn, fadeOut, oneShot })), null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
