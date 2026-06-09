@@ -115,6 +115,15 @@ td { padding: 4px 6px; vertical-align: middle; }
 
 /* Fichier */
 .file-cell { display: flex; align-items: center; gap: 4px; }
+.load-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.load-idle    { background: transparent; }
+.load-loading { background: #f9e2af; animation: blink .8s step-start infinite; }
+.load-ready   { background: var(--green); }
+.load-error   { background: var(--red); }
 .file-cell .fname {
   max-width: 220px;
   overflow: hidden;

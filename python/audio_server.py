@@ -152,17 +152,21 @@ class Track:
 
     def load(self):
         if not self.file or not os.path.exists(self.file):
+            event_queue.put({'type': 'load_error', 'id': self.id,
+                             'message': 'Fichier introuvable'})
             return False
         try:
             data, sr = sf.read(self.file, always_2d=True, dtype='float32')
             with self.lock:
                 self.data = data
                 self.sr   = sr
-                self._env_cache     = None   # invalider le cache
+                self._env_cache     = None
                 self._env_cache_key = None
+            event_queue.put({'type': 'loaded', 'id': self.id,
+                             'channels': data.shape[1], 'frames': data.shape[0], 'sr': sr})
             return True
         except Exception as e:
-            emit({'type': 'error', 'message': f'Lecture {self.file} : {e}'})
+            event_queue.put({'type': 'load_error', 'id': self.id, 'message': str(e)})
             return False
 
     # ── Enveloppe (mise en cache) ─────────────────────────────────────────
@@ -356,9 +360,7 @@ def process_commands():
         elif cmd == 'play':
             track    = get_or_create(row_id)
             velocity = int(msg.get('velocity', 127))
-            if track.data is None and track.file:
-                track.load()
-            track.start(velocity)
+            track.start(velocity)   # ignoré si data est None (fichier pas encore chargé)
 
         elif cmd == 'stop':
             track = get_or_create(row_id)

@@ -181,10 +181,11 @@ function makeRow(data = {}) {
     key:      isNaN(key) ? null : key,
     file:     data.file     ?? '',
     gain:     data.gain     != null ? data.gain : 1,
-    fadeType: data.fadeType ?? 'l',
-    fadeIn:   data.fadeIn   ?? 0.1,
-    fadeOut:  data.fadeOut  ?? 0.1,
-    oneShot:  data.oneShot  ?? false,
+    fadeType:  data.fadeType ?? 'l',
+    fadeIn:    data.fadeIn   ?? 0.1,
+    fadeOut:   data.fadeOut  ?? 0.1,
+    oneShot:   data.oneShot  ?? false,
+    loadState: data.file ? 'loading' : 'idle',  // idle|loading|ready|error
   };
   rows.push(row);
   renderRow(row);
@@ -208,6 +209,7 @@ function renderRow(row) {
     </td>
     <td class="file-cell">
       <button class="pick-file" data-id="${row.id}">…</button>
+      <span class="load-dot load-${row.loadState}" data-id="${row.id}" title=""></span>
       <span class="fname ${row.file ? 'set' : ''}" data-id="${row.id}" title="${escHtml(row.file)}">
         ${row.file ? baseName(row.file) : '(aucun)'}
       </span>
@@ -399,12 +401,22 @@ async function pickFile(id) {
   const row = rows.find(r => r.id === id);
   if (!row) return;
   row.file = filePath;
+  row.loadState = 'loading';
   const tr = document.querySelector(`tr[data-id="${id}"]`);
   const span = tr.querySelector('.fname');
   span.textContent = baseName(filePath);
   span.title = filePath;
   span.classList.add('set');
+  updateLoadDot(row);
   sendRowUpdate(row);
+}
+
+function updateLoadDot(row) {
+  const dot = document.querySelector(`.load-dot[data-id="${row.id}"]`);
+  if (!dot) return;
+  dot.className = `load-dot load-${row.loadState}`;
+  const titles = { idle: '', loading: 'Chargement…', ready: 'Prêt', error: 'Erreur de chargement' };
+  dot.title = titles[row.loadState] ?? '';
 }
 
 // ── Fade cell mise à jour ─────────────────────────────────────────────────────
@@ -461,6 +473,12 @@ window.api.onAudioEvent((msg) => {
     status.className   = 'status err';
   } else if (msg.type === 'voice_end') {
     setRowActive(msg.id, false);
+  } else if (msg.type === 'loaded') {
+    const row = rows.find(r => r.id === msg.id);
+    if (row) { row.loadState = 'ready'; updateLoadDot(row); }
+  } else if (msg.type === 'load_error') {
+    const row = rows.find(r => r.id === msg.id);
+    if (row) { row.loadState = 'error'; updateLoadDot(row); }
   }
 });
 
