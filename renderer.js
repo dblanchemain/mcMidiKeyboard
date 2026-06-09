@@ -19,24 +19,18 @@ function midiToName(n) {
   return NOTE_NAMES[n % 12] + (Math.floor(n / 12) - 1);
 }
 
-// ── Constantes bouton rotatif ────────────────────────────────────────────────
+// ── Bouton rotatif ───────────────────────────────────────────────────────────
+// Calibration absolue (CSS rotate) :
+//   gain=-10 →   0°   gain=1 → 130°   gain=10 → 270°
 const KNOB_MIN = -10;
 const KNOB_MAX = 10;
-// Course physique : 180°. gain=1 en haut (centre à 90°).
-// gain=-10 → 15% de 180° = 27° du bord → visuel -63°
-// gain=+10 → 85% de 180° = 153° du bord → visuel +63°
-// Marqueur SVG à ≈ -114° à CSS 0° (calibré utilisateur)
-const KNOB_HALF = 63;
-const KNOB_SVG_OFFSET = 114;
 
 function gainToDeg(gain) {
-  let deg;
   if (gain <= 1) {
-    deg = (gain - 1) / (1 - KNOB_MIN) * KNOB_HALF;
+    return (gain + 10) / 11 * 130;          // 0° … 130°
   } else {
-    deg = (gain - 1) / (KNOB_MAX - 1) * KNOB_HALF;
+    return 130 + (gain - 1) / 9 * 140;     // 130° … 270°
   }
-  return deg + KNOB_SVG_OFFSET;
 }
 
 // ── Modal fade-in/out ────────────────────────────────────────────────────────
