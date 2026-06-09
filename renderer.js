@@ -549,6 +549,9 @@ document.getElementById('btnLoad').addEventListener('click', async () => {
 // ── Ajout ligne ───────────────────────────────────────────────────────────────
 document.getElementById('btnAddRow').addEventListener('click', () => makeRow());
 
+// ── Thèmes ────────────────────────────────────────────────────────────────────
+initThemes();
+
 // Appuyer sur Échap annule le MIDI Learn en cours
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && midiLearnTarget !== null) {

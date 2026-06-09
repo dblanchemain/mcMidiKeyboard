@@ -6,12 +6,14 @@
         content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"/>
   <title>mcMidiKeyboard</title>
   <link rel="stylesheet" href="style.css"/>
+  <script src="themes.js"></script>
 </head>
 <body>
   <header>
     <span class="app-title">mcMidiKeyboard</span>
     <span id="statusBar" class="status">audio: démarrage…</span>
     <span id="midiStatus" class="status">MIDI: —</span>
+    <select id="themeSelect" title="Thème"></select>
     <button id="btnAddRow">+ Ligne</button>
     <button id="btnSave">Sauvegarder</button>
     <button id="btnLoad">Charger JSON</button>

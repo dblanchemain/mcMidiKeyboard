@@ -1,6 +1,7 @@
 /* mcMidiKeyboard — style */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Les variables de thème sont injectées dynamiquement par themes.js */
 :root {
   --bg:      #1e1e2e;
   --surface: #2a2a3e;
@@ -11,6 +12,18 @@
   --green:   #a6e3a1;
   --muted:   #6c7086;
 }
+
+/* Sélecteur de thème */
+#themeSelect {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+#themeSelect:hover { border-color: var(--accent); }
 
 body {
   background: var(--bg);
