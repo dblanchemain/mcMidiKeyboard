@@ -22,17 +22,17 @@ function midiToName(n) {
 // ── Constantes bouton rotatif ────────────────────────────────────────────────
 const KNOB_MIN = -10;
 const KNOB_MAX = 10;
-// Course physique du knob : -135° à +135° (270°)
-// gain=-10 → 15% de la course = -135 + 0.15×270 = -94.5°
-// gain=+10 → 85% de la course = -135 + 0.85×270 = +94.5°
-const KNOB_DEG_MIN = -94.5;
-const KNOB_DEG_MAX = 94.5;
-// valeur 1 → position haute → 0° de rotation (pointeur en haut)
-const KNOB_CENTER = 1;
+// gain=1 → 0° (marqueur en haut)
+// gain=-10 → -94.5° (15% de la course de 270°)
+// gain=+10 → +94.5° (85% de la course)
+// Interpolation bilinéaire : pivot à 1
 
 function gainToDeg(gain) {
-  const norm = (gain - KNOB_MIN) / (KNOB_MAX - KNOB_MIN);  // 0–1
-  return KNOB_DEG_MIN + norm * (KNOB_DEG_MAX - KNOB_DEG_MIN);
+  if (gain <= 1) {
+    return (gain - 1) / (1 - KNOB_MIN) * 94.5;  // 1→0°, -10→-94.5°
+  } else {
+    return (gain - 1) / (KNOB_MAX - 1) * 94.5;  // 1→0°, +10→+94.5°
+  }
 }
 
 // ── Modal fade-in/out ────────────────────────────────────────────────────────
