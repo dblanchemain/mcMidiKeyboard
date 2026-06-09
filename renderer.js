@@ -22,8 +22,11 @@ function midiToName(n) {
 // ── Constantes bouton rotatif ────────────────────────────────────────────────
 const KNOB_MIN = -10;
 const KNOB_MAX = 10;
-const KNOB_DEG_MIN = -135;   // position min en degrés (vers la gauche)
-const KNOB_DEG_MAX = 135;    // position max (vers la droite)
+// Course physique du knob : -135° à +135° (270°)
+// gain=-10 → 15% de la course = -135 + 0.15×270 = -94.5°
+// gain=+10 → 85% de la course = -135 + 0.85×270 = +94.5°
+const KNOB_DEG_MIN = -94.5;
+const KNOB_DEG_MAX = 94.5;
 // valeur 1 → position haute → 0° de rotation (pointeur en haut)
 const KNOB_CENTER = 1;
 
