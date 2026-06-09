@@ -189,6 +189,7 @@ function makeRow(data = {}) {
   };
   rows.push(row);
   renderRow(row);
+  sendRowUpdate(row);
   return row;
 }
 
