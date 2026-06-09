@@ -1,71 +1,93 @@
-name: Build
+name: Build & Release
 
 on:
-  workflow_dispatch:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - master
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build-linux:
+  build:
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win32
+          - os: macos-latest
+            platform: darwin
+          - os: ubuntu-latest
+            platform: linux
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install rpm (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get install -y rpm
+
+      - name: Install PortAudio (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install portaudio
+
+      - name: Cache Electron binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/.cache/electron
+            %APPDATA%\electron\Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build (electron-forge make)
+        run: npm run make
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcMidiKeyboard-${{ matrix.platform }}
+          path: out/make/**/*
+          if-no-files-found: error
+
+  release:
+    needs: build
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
         with:
-          node-version: '20'
+          path: artifacts
 
-      - name: Dépendances système (deb + rpm)
-        run: sudo apt-get install -y fakeroot rpm
-
-      - name: npm install
-        run: npm install
-
-      - name: electron-forge make (deb, rpm, zip)
-        run: npx electron-forge make
-
-      - uses: actions/upload-artifact@v4
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: linux
-          path: out/make/**/*
-
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: npm install
-        run: npm install
-
-      - name: electron-forge make (squirrel, zip)
-        run: npx electron-forge make
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows
-          path: out/make/**/*
-
-  build-macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: npm install
-        run: npm install
-
-      - name: electron-forge make (zip)
-        run: npx electron-forge make --targets @electron-forge/maker-zip
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: macos
-          path: out/make/**/*
+          tag_name: build-${{ github.run_number }}
+          name: "Build #${{ github.run_number }}"
+          body: |
+            Build automatique depuis le commit ${{ github.sha }}
+          files: artifacts/**/*
+          draft: false
+          prerelease: false
