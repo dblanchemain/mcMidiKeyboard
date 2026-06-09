@@ -120,12 +120,9 @@ td { padding: 4px 6px; vertical-align: middle; }
   border-radius: 50%;
   flex-shrink: 0;
 }
-@keyframes dot-blink {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.15; }
-}
 .load-idle    { background: transparent; }
-.load-loading { background: #f9e2af; animation: dot-blink .7s ease-in-out infinite; }
+.load-loading { background: #f9e2af; animation: dot-blink .5s step-end alternate infinite; }
+@keyframes dot-blink { to { opacity: 0; } }
 .load-ready   { background: var(--green); }
 .load-error   { background: var(--red); }
 .file-cell .fname {

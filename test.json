@@ -1,0 +1,29 @@
+[
+  {
+    "key": 60,
+    "file": "/home/dominique/alienChaos2.wav",
+    "gain": 1,
+    "fadeType": "l",
+    "fadeIn": 0.05,
+    "fadeOut": 0.1,
+    "oneShot": true
+  },
+  {
+    "key": 62,
+    "file": "/home/dominique/Téléchargements/marbles_quelques_billes.wav",
+    "gain": 1,
+    "fadeType": "l",
+    "fadeIn": 0.05,
+    "fadeOut": 0.1,
+    "oneShot": true
+  },
+  {
+    "key": 64,
+    "file": "/home/dominique/testrecord.wav",
+    "gain": 1,
+    "fadeType": "t",
+    "fadeIn": 0.1,
+    "fadeOut": 0.2,
+    "oneShot": false
+  }
+]

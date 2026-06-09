@@ -411,12 +411,30 @@ async function pickFile(id) {
   sendRowUpdate(row);
 }
 
+// Timers de clignotement JS par row.id (fallback si CSS animation ne fonctionne pas)
+const blinkTimers = {};
+
 function updateLoadDot(row) {
   const dot = document.querySelector(`.load-dot[data-id="${row.id}"]`);
   if (!dot) return;
+
+  // Arrêter le timer précédent
+  if (blinkTimers[row.id]) {
+    clearInterval(blinkTimers[row.id]);
+    delete blinkTimers[row.id];
+    dot.style.opacity = '';
+  }
+
   dot.className = `load-dot load-${row.loadState}`;
   const titles = { idle: '', loading: 'Chargement…', ready: 'Prêt', error: 'Erreur de chargement' };
   dot.title = titles[row.loadState] ?? '';
+
+  if (row.loadState === 'loading') {
+    let on = true;
+    blinkTimers[row.id] = setInterval(() => {
+      dot.style.opacity = (on = !on) ? '1' : '0.1';
+    }, 300);
+  }
 }
 
 // ── Fade cell mise à jour ─────────────────────────────────────────────────────
