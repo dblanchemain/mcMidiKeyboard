@@ -5,13 +5,34 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "start-json": "electron . --descriptor"
+    "start-json": "electron . --descriptor",
+    "build": "electron-builder --linux AppImage deb"
+  },
+  "build": {
+    "appId": "com.dblanchemain.mcmidikeyboard",
+    "productName": "mcMidiKeyboard",
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Audio",
+      "icon": "images"
+    },
+    "files": [
+      "**/*",
+      "!**/.git/**",
+      "!node_modules/.cache/**",
+      "!dist/**",
+      "!test.json"
+    ],
+    "extraResources": [
+      { "from": "python", "to": "python" }
+    ]
   },
   "keywords": [],
   "author": "D.Blanchemain",
   "license": "GPL-3.0-or-later",
   "devDependencies": {
-    "electron": "^33.0.0"
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
   },
   "allowScripts": {
     "electron@33.4.11": true
