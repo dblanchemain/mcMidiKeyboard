@@ -192,16 +192,20 @@ function makeRow(data = {}) {
   const rawKey = data.key;
   const key = (rawKey !== undefined && rawKey !== null && rawKey !== '')
     ? parseInt(rawKey) : null;
+  const rawCh = data.channel;
+  const channel = (rawCh !== undefined && rawCh !== null && rawCh !== '')
+    ? Math.max(1, Math.min(16, parseInt(rawCh))) : null;
   const row = {
     id,
     key:      isNaN(key) ? null : key,
+    channel:  isNaN(channel) ? null : channel,
     file:     data.file     ?? '',
     gain:     data.gain     != null ? data.gain : 1,
     fadeType:  data.fadeType ?? 'l',
     fadeIn:    data.fadeIn   ?? 0.1,
     fadeOut:   data.fadeOut  ?? 0.1,
     oneShot:   data.oneShot  ?? false,
-    loadState: data.file ? 'loading' : 'idle',  // idle|loading|ready|error
+    loadState: data.file ? 'loading' : 'idle',
   };
   rows.push(row);
   renderRow(row);
@@ -224,6 +228,11 @@ function renderRow(row) {
         <span class="key-name" data-id="${row.id}">${midiToName(row.key)}</span>
         <button class="learn-btn" data-id="${row.id}" title="MIDI Learn">L</button>
       </div>
+    </td>
+    <td class="ch-cell">
+      <input type="number" min="1" max="16" step="1"
+             placeholder="*" value="${row.channel !== null ? row.channel : ''}"
+             data-id="${row.id}" class="ch-input" title="Canal MIDI (vide = tous)"/>
     </td>
     <td class="file-cell">
       <button class="pick-file" data-id="${row.id}">…</button>
@@ -273,6 +282,12 @@ function renderRow(row) {
     updateKeyName(row);
     sendRowUpdate(row);
     sortRows();
+  });
+
+  tr.querySelector('.ch-input').addEventListener('change', (e) => {
+    const v = e.target.value.trim();
+    row.channel = v === '' ? null : Math.max(1, Math.min(16, parseInt(v) || 1));
+    sendRowUpdate(row);
   });
 
   tr.querySelector('.oneshot-chk').addEventListener('change', (e) => {
@@ -390,7 +405,8 @@ function initMidi() {
 
 function onMidiMessage(e) {
   const [status, note, velocity] = e.data;
-  const type = status & 0xf0;
+  const type    = status & 0xf0;
+  const channel = (status & 0x0f) + 1;  // 1-16
 
   if (type === 0x90 && velocity > 0) {
     // Note On
@@ -398,7 +414,8 @@ function onMidiMessage(e) {
       applyMidiLearn(note);
       return;
     }
-    const row = rows.find(r => r.key === note);
+    const row = rows.find(r => r.key === note &&
+      (r.channel === null || r.channel === channel));
     if (row && row.file && row.loadState === 'ready') {
       window.api.sendAudio({ cmd: 'play', id: row.id, velocity });
       setRowActive(row.id, true);
@@ -406,7 +423,8 @@ function onMidiMessage(e) {
 
   } else if (type === 0x80 || (type === 0x90 && velocity === 0)) {
     // Note Off
-    const row = rows.find(r => r.key === note);
+    const row = rows.find(r => r.key === note &&
+      (r.channel === null || r.channel === channel));
     if (row) window.api.sendAudio({ cmd: 'stop', id: row.id });
   }
 }
@@ -483,6 +501,7 @@ function sendRowUpdate(row) {
     cmd:      'update',
     id:       row.id,
     key:      row.key,
+    channel:  row.channel,
     file:     row.file,
     gain:     row.gain,
     fadeType: row.fadeType,
@@ -533,8 +552,8 @@ window.api.onLoadDescriptor((data) => {
 document.getElementById('btnSave').addEventListener('click', async () => {
   const { ipcRenderer } = require === undefined ? {} : {};
   // Utiliser showSaveDialog via preload n'est pas exposé — on download
-  const json = JSON.stringify(rows.map(({ key, file, gain, fadeType, fadeIn, fadeOut, oneShot }) =>
-    ({ key, file, gain, fadeType, fadeIn, fadeOut, oneShot })), null, 2);
+  const json = JSON.stringify(rows.map(({ key, channel, file, gain, fadeType, fadeIn, fadeOut, oneShot }) =>
+    ({ key, channel, file, gain, fadeType, fadeIn, fadeOut, oneShot })), null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');

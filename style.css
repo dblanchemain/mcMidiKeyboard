@@ -126,6 +126,20 @@ td { padding: 4px 6px; vertical-align: middle; }
 }
 @keyframes blink { 50% { opacity: 0.3; } }
 
+/* Canal MIDI */
+.ch-cell input[type=number] {
+  width: 40px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 3px 4px;
+}
+.ch-cell input[type=number]::-webkit-inner-spin-button { opacity: 0.4; }
+
 /* Fichier */
 .file-cell { display: flex; align-items: center; gap: 4px; }
 .load-dot {
