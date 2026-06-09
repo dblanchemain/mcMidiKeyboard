@@ -28,7 +28,9 @@ const KNOB_MAX = 10;
 // Le marqueur SVG est à -12° à rotation CSS 0° → offset +12° pour centrer
 // Interpolation bilinéaire : pivot à 1
 
-const KNOB_SVG_OFFSET = 12;
+// Le marqueur SVG est à ≈ -114° (8h30) à rotation CSS 0° — calibré sur deux points :
+// gain=10 → "en haut légèrement gauche" ≈ -8°, gain=-1.7 → "bas gauche" ≈ -125°
+const KNOB_SVG_OFFSET = 114;
 
 function gainToDeg(gain) {
   let deg;
