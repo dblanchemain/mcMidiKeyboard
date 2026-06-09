@@ -4,6 +4,7 @@ module.exports = {
     extraResource: ['python'],
     name: 'mcMidiKeyboard',
     executableName: 'mc-midi-keyboard',
+    icon: 'images/icon',   // .ico (win), .icns (mac), .png (linux)
   },
   rebuildConfig: {},
   makers: [
