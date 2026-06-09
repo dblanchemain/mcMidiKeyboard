@@ -169,6 +169,22 @@ document.getElementById('modalOk').addEventListener('click', () => {
   modalTargetId = null;
 });
 
+// ── Tri des lignes par key ────────────────────────────────────────────────────
+
+function sortRows() {
+  rows.sort((a, b) => {
+    if (a.key === null && b.key === null) return 0;
+    if (a.key === null) return 1;
+    if (b.key === null) return -1;
+    return a.key - b.key;
+  });
+  const tbody = document.getElementById('tableBody');
+  for (const row of rows) {
+    const tr = document.querySelector(`tr[data-id="${row.id}"]`);
+    if (tr) tbody.appendChild(tr);
+  }
+}
+
 // ── Construction des lignes ──────────────────────────────────────────────────
 
 function makeRow(data = {}) {
@@ -190,6 +206,7 @@ function makeRow(data = {}) {
   rows.push(row);
   renderRow(row);
   sendRowUpdate(row);
+  sortRows();
   return row;
 }
 
@@ -250,11 +267,12 @@ function renderRow(row) {
   tr.querySelector('.del-btn').addEventListener('click', () => deleteRow(row.id));
   tr.querySelector('.learn-btn').addEventListener('click', () => toggleLearn(row.id));
 
-  tr.querySelector('.key-input').addEventListener('input', (e) => {
+  tr.querySelector('.key-input').addEventListener('change', (e) => {
     const v = e.target.value.trim();
     row.key = v === '' ? null : Math.max(0, Math.min(127, parseInt(v) || 0));
     updateKeyName(row);
     sendRowUpdate(row);
+    sortRows();
   });
 
   tr.querySelector('.oneshot-chk').addEventListener('change', (e) => {
@@ -337,6 +355,7 @@ function applyMidiLearn(note) {
   }
   updateKeyName(row);
   sendRowUpdate(row);
+  sortRows();
   midiLearnTarget = null;
 }
 
