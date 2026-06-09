@@ -28,17 +28,17 @@ const THEMES = {
       '--muted':   '#666666',
     },
   },
-  Solaire: {
-    label: 'Solaire',
+  Marbré: {
+    label: 'Marbré',
     vars: {
-      '--bg':      '#002b36',
-      '--surface': '#073642',
-      '--border':  '#586e75',
-      '--text':    '#93a1a1',
-      '--accent':  '#268bd2',
-      '--red':     '#dc322f',
-      '--green':   '#859900',
-      '--muted':   '#657b83',
+      '--bg':      '#1c1b1f',
+      '--surface': '#2a2830',
+      '--border':  '#4a4455',
+      '--text':    '#ddd8e0',
+      '--accent':  '#c0a8d0',
+      '--red':     '#d07880',
+      '--green':   '#80b898',
+      '--muted':   '#786870',
     },
   },
   Clair: {
