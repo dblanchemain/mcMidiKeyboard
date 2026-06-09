@@ -22,22 +22,19 @@ function midiToName(n) {
 // ── Constantes bouton rotatif ────────────────────────────────────────────────
 const KNOB_MIN = -10;
 const KNOB_MAX = 10;
-// gain=1 → marqueur en haut (0° visuel)
-// gain=-10 → 15% de la course → -94.5° visuel
-// gain=+10 → 85% de la course → +94.5° visuel
-// Le marqueur SVG est à -12° à rotation CSS 0° → offset +12° pour centrer
-// Interpolation bilinéaire : pivot à 1
-
-// Le marqueur SVG est à ≈ -114° (8h30) à rotation CSS 0° — calibré sur deux points :
-// gain=10 → "en haut légèrement gauche" ≈ -8°, gain=-1.7 → "bas gauche" ≈ -125°
+// Course physique : 180°. gain=1 en haut (centre à 90°).
+// gain=-10 → 15% de 180° = 27° du bord → visuel -63°
+// gain=+10 → 85% de 180° = 153° du bord → visuel +63°
+// Marqueur SVG à ≈ -114° à CSS 0° (calibré utilisateur)
+const KNOB_HALF = 63;
 const KNOB_SVG_OFFSET = 114;
 
 function gainToDeg(gain) {
   let deg;
   if (gain <= 1) {
-    deg = (gain - 1) / (1 - KNOB_MIN) * 94.5;
+    deg = (gain - 1) / (1 - KNOB_MIN) * KNOB_HALF;
   } else {
-    deg = (gain - 1) / (KNOB_MAX - 1) * 94.5;
+    deg = (gain - 1) / (KNOB_MAX - 1) * KNOB_HALF;
   }
   return deg + KNOB_SVG_OFFSET;
 }
