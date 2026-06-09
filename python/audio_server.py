@@ -307,20 +307,11 @@ def run_sounddevice():
     except Exception:
         n_out = 2
 
-    # Essayer d'abord le périphérique par défaut, puis device=None en fallback
-    for device in [sd.default.device[1], None]:
-        try:
-            with sd.OutputStream(samplerate=SR, channels=n_out,
-                                 blocksize=BLOCK, dtype='float32',
-                                 device=device,
-                                 callback=audio_callback):
-                emit({'type': 'ready', 'backend': 'sounddevice'})
-                process_commands()
-            return
-        except sd.PortAudioError as e:
-            if device is None:
-                raise
-            emit({'type': 'error', 'message': f'Périphérique défaut indisponible, essai fallback: {e})'})
+    with sd.OutputStream(samplerate=SR, channels=n_out,
+                         blocksize=BLOCK, dtype='float32',
+                         callback=audio_callback):
+        emit({'type': 'ready', 'backend': 'sounddevice'})
+        process_commands()
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Traitement des commandes

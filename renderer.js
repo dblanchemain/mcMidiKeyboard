@@ -380,7 +380,7 @@ function onMidiMessage(e) {
       return;
     }
     const row = rows.find(r => r.key === note);
-    if (row && row.file) {
+    if (row && row.file && row.loadState === 'ready') {
       window.api.sendAudio({ cmd: 'play', id: row.id, velocity });
       setRowActive(row.id, true);
     }

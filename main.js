@@ -76,7 +76,12 @@ function startAudioServer() {
     }
   });
 
-  audioProcess.stderr.on('data', (d) => console.error('[audio]', d.toString()));
+  audioProcess.stderr.on('data', (d) => {
+    const txt = d.toString().trim();
+    console.error('[audio]', txt);
+    if (mainWindow) mainWindow.webContents.send('audio-event',
+      { type: 'error', message: txt.split('\n').pop() });
+  });
 
   audioProcess.on('exit', (code) => {
     console.log('[audio] exit', code);
