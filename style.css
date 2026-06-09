@@ -1,0 +1,220 @@
+/* mcMidiKeyboard — style */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:      #1e1e2e;
+  --surface: #2a2a3e;
+  --border:  #44475a;
+  --text:    #cdd6f4;
+  --accent:  #7aa2f7;
+  --red:     #f38ba8;
+  --green:   #a6e3a1;
+  --muted:   #6c7086;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.app-title { font-weight: 700; font-size: 15px; color: var(--accent); margin-right: auto; }
+.status    { font-size: 11px; color: var(--muted); }
+.status.ok { color: var(--green); }
+.status.err{ color: var(--red); }
+
+button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+button:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Table ── */
+#tableWrap {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+thead th {
+  background: var(--surface);
+  border-bottom: 2px solid var(--border);
+  padding: 6px 8px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--accent);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+tbody tr { border-bottom: 1px solid var(--border); }
+tbody tr:hover { background: rgba(122,162,247,.06); }
+td { padding: 4px 6px; vertical-align: middle; }
+
+/* Touche key */
+.key-cell input[type=text] {
+  width: 54px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 3px;
+}
+
+/* Fichier */
+.file-cell { display: flex; align-items: center; gap: 4px; }
+.file-cell .fname {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 11px;
+}
+.file-cell .fname.set { color: var(--text); }
+.file-cell button { padding: 2px 6px; font-size: 11px; }
+
+/* ── Bouton rotatif (knob) ── */
+.knob-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 52px;
+  user-select: none;
+}
+.knob-img {
+  width: 36px;
+  height: 36px;
+  cursor: ns-resize;
+  display: block;
+  /* La rotation est appliquée via JS : transform: rotate(Xdeg) */
+}
+.knob-val {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* Fade cell */
+.fade-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.fade-cell .fade-badge {
+  font-size: 11px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--muted);
+}
+.fade-cell button { padding: 1px 5px; font-size: 11px; }
+
+/* delete btn */
+.del-btn {
+  background: transparent;
+  border: none;
+  color: var(--red);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.del-btn:hover { color: #ff9999; }
+
+/* ── Modal ── */
+.modal {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+}
+.modal.hidden { display: none; }
+.modal-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 18px 22px;
+  min-width: 360px;
+}
+.modal-box h3 { margin-bottom: 12px; color: var(--accent); font-size: 14px; }
+.fade-type-row, .fade-num-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.fade-type-row select, .fade-num-row input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 12px;
+}
+.fade-num-row input { width: 70px; }
+
+/* Enveloppe */
+#envContainer {
+  position: relative;
+  width: 300px;
+  height: 90px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+#envSvg { position: absolute; top: 0; left: 0; }
+.env-handle {
+  position: absolute;
+  top: 0;
+  width: 6px;
+  height: 90px;
+  cursor: ew-resize;
+  z-index: 2;
+}
+.env-handle::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 2px;
+  width: 2px;
+  height: 90px;
+  background: var(--red);
+  opacity: .8;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}

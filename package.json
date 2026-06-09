@@ -1,0 +1,19 @@
+{
+  "name": "mc-midi-keyboard",
+  "version": "1.0.0",
+  "description": "MIDI keyboard multichannel audio player",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "start-json": "electron . --descriptor"
+  },
+  "keywords": [],
+  "author": "D.Blanchemain",
+  "license": "GPL-3.0-or-later",
+  "devDependencies": {
+    "electron": "^33.0.0"
+  },
+  "allowScripts": {
+    "electron@33.4.11": true
+  }
+}
