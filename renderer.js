@@ -194,7 +194,7 @@ function makeRow(data = {}) {
     ? parseInt(rawKey) : null;
   const rawCh = data.channel;
   const channel = (rawCh !== undefined && rawCh !== null && rawCh !== '')
-    ? Math.max(1, Math.min(16, parseInt(rawCh))) : null;
+    ? Math.max(1, Math.min(16, parseInt(rawCh))) : 1;
   const row = {
     id,
     key:      isNaN(key) ? null : key,
