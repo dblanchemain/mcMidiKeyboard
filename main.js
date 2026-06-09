@@ -62,9 +62,22 @@ function createWindow() {
 
 function startAudioServer() {
   if (audioProcess) return;
-  const base   = app.isPackaged ? process.resourcesPath : __dirname;
-  const script = path.join(base, 'python', 'audio_server.py');
-  audioProcess = spawn('python3', [script], {
+  const base      = app.isPackaged ? process.resourcesPath : __dirname;
+  const pythonDir = path.join(base, 'python');
+
+  let spawnCmd, spawnArgs;
+  if (app.isPackaged && process.platform !== 'linux') {
+    // Exécutable PyInstaller bundlé (Windows / macOS)
+    const exe = process.platform === 'win32' ? 'audio_server.exe' : 'audio_server';
+    spawnCmd  = path.join(pythonDir, exe);
+    spawnArgs = [];
+  } else {
+    // Python externe (Linux ou mode développement)
+    spawnCmd  = 'python3';
+    spawnArgs = [path.join(pythonDir, 'audio_server.py')];
+  }
+
+  audioProcess = spawn(spawnCmd, spawnArgs, {
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 

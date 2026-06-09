@@ -35,6 +35,11 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Install rpm (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get install -y rpm
@@ -42,6 +47,14 @@ jobs:
       - name: Install PortAudio (macOS)
         if: matrix.os == 'macos-latest'
         run: brew install portaudio
+
+      - name: Bundle audio_server avec PyInstaller (Windows / macOS)
+        if: matrix.os != 'ubuntu-latest'
+        shell: bash
+        run: |
+          pip install pyinstaller sounddevice soundfile numpy
+          pyinstaller --onefile --clean --exclude-module jack \
+            --distpath python python/audio_server.py
 
       - name: Cache Electron binaries
         uses: actions/cache@v4
