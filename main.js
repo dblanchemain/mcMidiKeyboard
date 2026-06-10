@@ -146,10 +146,6 @@ ipcMain.on('start-audio-server', () => {
   startAudioServer();
 });
 
-ipcMain.on('restart-audio-server', (_event, maxPorts) => {
-  stopAudioServer();
-  setTimeout(() => startAudioServer(maxPorts), 400);
-});
 
 // ── App lifecycle ────────────────────────────────────────────────────────────
 

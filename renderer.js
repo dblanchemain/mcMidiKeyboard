@@ -9,11 +9,6 @@ let nextId = 0;
 // Id de la ligne en attente de MIDI Learn (null = pas en mode learn)
 let midiLearnTarget = null;
 
-// Nombre de canaux audio actuellement actifs dans le serveur
-let currentMaxPorts = 16;
-
-// Callbacks à exécuter dès que le serveur envoie l'événement 'ready'
-let _onReadyCallbacks = [];
 
 // ── Noms de notes MIDI ────────────────────────────────────────────────────────
 const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
@@ -532,8 +527,6 @@ window.api.onAudioEvent((msg) => {
     if (msg.maxPorts) currentMaxPorts = msg.maxPorts;
     status.textContent = 'audio: prêt';
     status.className   = 'status ok';
-    const cbs = _onReadyCallbacks.splice(0);
-    cbs.forEach(fn => fn());
   } else if (msg.type === 'error') {
     status.textContent = 'audio: erreur — ' + msg.message;
     status.className   = 'status err';
@@ -551,18 +544,8 @@ window.api.onAudioEvent((msg) => {
 // ── Chargement depuis descripteur JSON ───────────────────────────────────────
 
 function applyDescriptor(data) {
-  const nbCanaux = Array.isArray(data) ? null : (data?.nbCanaux ?? null);
-  const items    = Array.isArray(data) ? data : (data?.keys ?? []);
-
-  // Peupler les lignes immédiatement — ne pas attendre le redémarrage
+  const items = Array.isArray(data) ? data : (data?.keys ?? []);
   items.forEach(item => makeRow(item));
-
-  if (nbCanaux && nbCanaux !== currentMaxPorts) {
-    currentMaxPorts = nbCanaux;
-    window.api.restartAudioServer(nbCanaux);
-    // Après ready, renvoyer tous les update au nouveau serveur
-    _onReadyCallbacks.push(() => rows.forEach(row => sendRowUpdate(row)));
-  }
 }
 
 window.api.onLoadDescriptor((data) => {
