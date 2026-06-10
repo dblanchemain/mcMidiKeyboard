@@ -578,8 +578,8 @@ document.getElementById('btnLoad').addEventListener('click', async () => {
         const data = JSON.parse(ev.target.result);
         document.getElementById('tableBody').innerHTML = '';
         rows = []; nextId = 0;
-        const nbCanaux = !Array.isArray(data) && data.nbCanaux ? data.nbCanaux : null;
-        if (nbCanaux) window.api.restartAudio(nbCanaux);
+        const nbCanaux = !Array.isArray(data) && data.nbCanaux ? data.nbCanaux : 16;
+        window.api.restartAudio(nbCanaux);
         applyDescriptor(data);
       } catch (err) {
         alert('Erreur de lecture JSON : ' + err.message);
