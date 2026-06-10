@@ -87,11 +87,12 @@ function startAudioServer(maxPorts = descriptorMaxPorts) {
     spawnArgs = [path.join(pythonDir, 'audio_server.py'), '--max-ports', String(maxPorts)];
   }
 
-  audioProcess = spawn(spawnCmd, spawnArgs, {
+  const proc = spawn(spawnCmd, spawnArgs, {
     stdio: ['pipe', 'pipe', 'pipe'],
   });
+  audioProcess = proc;
 
-  audioProcess.stdout.on('data', (data) => {
+  proc.stdout.on('data', (data) => {
     const lines = data.toString().split('\n').filter(Boolean);
     for (const line of lines) {
       try {
@@ -101,16 +102,16 @@ function startAudioServer(maxPorts = descriptorMaxPorts) {
     }
   });
 
-  audioProcess.stderr.on('data', (d) => {
+  proc.stderr.on('data', (d) => {
     const txt = d.toString().trim();
     console.error('[audio]', txt);
     if (mainWindow) mainWindow.webContents.send('audio-event',
       { type: 'error', message: txt.split('\n').pop() });
   });
 
-  audioProcess.on('exit', (code) => {
+  proc.on('exit', (code) => {
     console.log('[audio] exit', code);
-    audioProcess = null;
+    if (audioProcess === proc) audioProcess = null;
   });
 }
 
