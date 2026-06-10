@@ -156,7 +156,7 @@ ipcMain.on('restart-audio-server', (_event, maxPorts) => {
 
 app.whenReady().then(() => {
   createWindow();
-  startAudioServer();
+  if (descriptorArg) startAudioServer();
 });
 
 app.on('window-all-closed', () => {

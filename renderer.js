@@ -591,7 +591,10 @@ document.getElementById('btnLoad').addEventListener('click', async () => {
 });
 
 // ── Ajout ligne ───────────────────────────────────────────────────────────────
-document.getElementById('btnAddRow').addEventListener('click', () => makeRow());
+document.getElementById('btnAddRow').addEventListener('click', () => {
+  if (rows.length === 0) window.api.restartAudio(16);
+  makeRow();
+});
 
 // ── Thèmes ────────────────────────────────────────────────────────────────────
 initThemes();
