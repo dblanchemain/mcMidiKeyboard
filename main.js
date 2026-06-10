@@ -23,6 +23,16 @@ const descriptorArg = (() => {
   return null;
 })();
 
+// Nombre de canaux audio requis par le descriptor (pour JACK --max-ports)
+const descriptorMaxPorts = (() => {
+  if (!descriptorArg) return 16;
+  try {
+    const data = JSON.parse(fs.readFileSync(descriptorArg, 'utf8'));
+    if (!Array.isArray(data) && data.nbCanaux) return data.nbCanaux;
+  } catch (_) {}
+  return 16;
+})();
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 900,
@@ -70,11 +80,11 @@ function startAudioServer() {
     // Exécutable PyInstaller bundlé (Windows / macOS)
     const exe = process.platform === 'win32' ? 'audio_server.exe' : 'audio_server';
     spawnCmd  = path.join(pythonDir, exe);
-    spawnArgs = [];
+    spawnArgs = ['--max-ports', String(descriptorMaxPorts)];
   } else {
     // Python externe (Linux ou mode développement)
     spawnCmd  = 'python3';
-    spawnArgs = [path.join(pythonDir, 'audio_server.py')];
+    spawnArgs = [path.join(pythonDir, 'audio_server.py'), '--max-ports', String(descriptorMaxPorts)];
   }
 
   audioProcess = spawn(spawnCmd, spawnArgs, {

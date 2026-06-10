@@ -542,9 +542,8 @@ window.api.onAudioEvent((msg) => {
 // ── Chargement depuis descripteur JSON ───────────────────────────────────────
 
 window.api.onLoadDescriptor((data) => {
-  if (Array.isArray(data)) {
-    data.forEach(item => makeRow(item));
-  }
+  const items = Array.isArray(data) ? data : (data?.keys ?? []);
+  items.forEach(item => makeRow(item));
 });
 
 // ── Sauvegarder / Charger ────────────────────────────────────────────────────
@@ -574,7 +573,8 @@ document.getElementById('btnLoad').addEventListener('click', async () => {
         const data = JSON.parse(ev.target.result);
         document.getElementById('tableBody').innerHTML = '';
         rows = []; nextId = 0;
-        if (Array.isArray(data)) data.forEach(item => makeRow(item));
+        const items = Array.isArray(data) ? data : (data?.keys ?? []);
+        items.forEach(item => makeRow(item));
       } catch (err) {
         alert('Erreur de lecture JSON : ' + err.message);
       }

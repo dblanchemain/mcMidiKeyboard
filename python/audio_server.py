@@ -13,7 +13,14 @@ import threading
 import math
 import platform
 import queue
+import argparse
 import numpy as np
+
+# ── Nombre de canaux JACK/sounddevice configuré en ligne de commande ──────────
+_parser = argparse.ArgumentParser(add_help=False)
+_parser.add_argument('--max-ports', type=int, default=16)
+_args, _ = _parser.parse_known_args()
+MAX_PORTS_CFG = _args.max_ports
 
 # ── Détection plateforme ──────────────────────────────────────────────────────
 
@@ -254,7 +261,7 @@ def snapshot_tracks():
 
 def run_jack():
     client    = jack.Client('mcMidiKeyboard', no_start_server=True)
-    MAX_PORTS = 16
+    MAX_PORTS = MAX_PORTS_CFG
     out_ports = [client.outports.register(f'out_{i+1}') for i in range(MAX_PORTS)]
 
     @client.set_process_callback
@@ -303,7 +310,7 @@ def run_sounddevice():
 
     try:
         info  = sd.query_devices(kind='output')
-        n_out = min(info.get('max_output_channels', 2), 16)
+        n_out = min(info.get('max_output_channels', 2), MAX_PORTS_CFG)
     except Exception:
         n_out = 2
 
