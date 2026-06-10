@@ -524,7 +524,6 @@ function setRowActive(id, active) {
 window.api.onAudioEvent((msg) => {
   const status = document.getElementById('statusBar');
   if (msg.type === 'ready') {
-    if (msg.maxPorts) currentMaxPorts = msg.maxPorts;
     status.textContent = 'audio: prêt';
     status.className   = 'status ok';
   } else if (msg.type === 'error') {
@@ -579,6 +578,8 @@ document.getElementById('btnLoad').addEventListener('click', async () => {
         const data = JSON.parse(ev.target.result);
         document.getElementById('tableBody').innerHTML = '';
         rows = []; nextId = 0;
+        const nbCanaux = !Array.isArray(data) && data.nbCanaux ? data.nbCanaux : null;
+        if (nbCanaux) window.api.restartAudio(nbCanaux);
         applyDescriptor(data);
       } catch (err) {
         alert('Erreur de lecture JSON : ' + err.message);
