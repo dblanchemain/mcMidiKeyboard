@@ -286,7 +286,7 @@ def run_jack():
         except Exception:
             pass
 
-        emit({'type': 'ready', 'backend': 'jack'})
+        emit({'type': 'ready', 'backend': 'jack', 'maxPorts': MAX_PORTS})
         process_commands()
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -314,10 +314,15 @@ def run_sounddevice():
     except Exception:
         n_out = 2
 
-    with sd.OutputStream(samplerate=SR, channels=n_out,
-                         blocksize=BLOCK, dtype='float32',
-                         callback=audio_callback):
-        emit({'type': 'ready', 'backend': 'sounddevice'})
+    try:
+        stream = sd.OutputStream(samplerate=SR, channels=n_out,
+                                 blocksize=BLOCK, dtype='float32',
+                                 callback=audio_callback)
+    except Exception as e:
+        emit({'type': 'error', 'message': f'sounddevice indisponible : {e}'})
+        return
+    with stream:
+        emit({'type': 'ready', 'backend': 'sounddevice', 'maxPorts': n_out})
         process_commands()
 
 # ══════════════════════════════════════════════════════════════════════════════

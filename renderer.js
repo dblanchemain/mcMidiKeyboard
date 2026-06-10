@@ -199,8 +199,8 @@ function makeRow(data = {}) {
   const key = (rawKey !== undefined && rawKey !== null && rawKey !== '')
     ? parseInt(rawKey) : null;
   const rawCh = data.channel;
-  const channel = (rawCh !== undefined && rawCh !== null && rawCh !== '')
-    ? Math.max(1, Math.min(16, parseInt(rawCh))) : 1;
+  const channel = (rawCh != null && rawCh !== '')
+    ? Math.max(1, Math.min(16, parseInt(rawCh))) : null;
   const row = {
     id,
     key:      isNaN(key) ? null : key,
@@ -529,6 +529,7 @@ function setRowActive(id, active) {
 window.api.onAudioEvent((msg) => {
   const status = document.getElementById('statusBar');
   if (msg.type === 'ready') {
+    if (msg.maxPorts) currentMaxPorts = msg.maxPorts;
     status.textContent = 'audio: prêt';
     status.className   = 'status ok';
     const cbs = _onReadyCallbacks.splice(0);
@@ -553,14 +554,14 @@ function applyDescriptor(data) {
   const nbCanaux = Array.isArray(data) ? null : (data?.nbCanaux ?? null);
   const items    = Array.isArray(data) ? data : (data?.keys ?? []);
 
-  const doLoad = () => items.forEach(item => makeRow(item));
+  // Peupler les lignes immédiatement — ne pas attendre le redémarrage
+  items.forEach(item => makeRow(item));
 
   if (nbCanaux && nbCanaux !== currentMaxPorts) {
     currentMaxPorts = nbCanaux;
     window.api.restartAudioServer(nbCanaux);
-    _onReadyCallbacks.push(doLoad);
-  } else {
-    doLoad();
+    // Après ready, renvoyer tous les update au nouveau serveur
+    _onReadyCallbacks.push(() => rows.forEach(row => sendRowUpdate(row)));
   }
 }
 
