@@ -70,7 +70,7 @@ function createWindow() {
 
 // ── Audio server Python ─────────────────────────────────────────────────────
 
-function startAudioServer() {
+function startAudioServer(maxPorts = descriptorMaxPorts) {
   if (audioProcess) return;
   const base      = app.isPackaged ? process.resourcesPath : __dirname;
   const pythonDir = path.join(base, 'python');
@@ -80,11 +80,11 @@ function startAudioServer() {
     // Exécutable PyInstaller bundlé (Windows / macOS)
     const exe = process.platform === 'win32' ? 'audio_server.exe' : 'audio_server';
     spawnCmd  = path.join(pythonDir, exe);
-    spawnArgs = ['--max-ports', String(descriptorMaxPorts)];
+    spawnArgs = ['--max-ports', String(maxPorts)];
   } else {
     // Python externe (Linux ou mode développement)
     spawnCmd  = 'python3';
-    spawnArgs = [path.join(pythonDir, 'audio_server.py'), '--max-ports', String(descriptorMaxPorts)];
+    spawnArgs = [path.join(pythonDir, 'audio_server.py'), '--max-ports', String(maxPorts)];
   }
 
   audioProcess = spawn(spawnCmd, spawnArgs, {
@@ -144,6 +144,11 @@ ipcMain.on('audio-cmd', (_event, msg) => {
 
 ipcMain.on('start-audio-server', () => {
   startAudioServer();
+});
+
+ipcMain.on('restart-audio-server', (_event, maxPorts) => {
+  stopAudioServer();
+  startAudioServer(maxPorts);
 });
 
 // ── App lifecycle ────────────────────────────────────────────────────────────

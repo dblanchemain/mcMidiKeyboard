@@ -6,4 +6,5 @@ contextBridge.exposeInMainWorld('api', {
   sendAudio: (msg) => ipcRenderer.send('audio-cmd', msg),
   onAudioEvent: (cb) => ipcRenderer.on('audio-event', (_e, msg) => cb(msg)),
   onLoadDescriptor: (cb) => ipcRenderer.on('load-descriptor', (_e, data) => cb(data)),
+  restartAudioServer: (maxPorts) => ipcRenderer.send('restart-audio-server', maxPorts),
 });
