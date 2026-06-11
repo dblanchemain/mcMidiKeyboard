@@ -117,9 +117,13 @@ function startAudioServer(maxPorts = descriptorMaxPorts) {
 
 function stopAudioServer() {
   if (audioProcess) {
-    sendToAudio({ cmd: 'quit' });
-    audioProcess.kill();
+    const proc = audioProcess;
     audioProcess = null;
+    sendToAudio({ cmd: 'quit' });
+    // Laisser Python sortir proprement du `with client:` pour déconnecter JACK
+    // proprement ; si ça dure plus d'une seconde, tuer de force.
+    const t = setTimeout(() => proc.kill(), 1000);
+    proc.once('exit', () => clearTimeout(t));
   }
 }
 

@@ -9,6 +9,7 @@ License: GPL-3.0-or-later — D.Blanchemain
 import sys
 import os
 import json
+import signal
 import threading
 import math
 import platform
@@ -376,6 +377,9 @@ def process_commands():
 # ── Point d'entrée ────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
+    # SIGTERM → quitter proprement pour que JACK puisse déconnecter le client
+    signal.signal(signal.SIGTERM, lambda *_: cmd_queue.put({'cmd': 'quit'}))
+
     threading.Thread(target=read_stdin,    daemon=True).start()
     threading.Thread(target=event_emitter, daemon=True).start()
     if USE_JACK:
