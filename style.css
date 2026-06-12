@@ -301,3 +301,22 @@ td { padding: 4px 6px; vertical-align: middle; }
   justify-content: flex-end;
   margin-top: 4px;
 }
+
+/* ── Mode banks ── */
+.hidden { display: none !important; }
+.bank-indicator {
+  font-size: 11px;
+  background: var(--accent);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+body.bank-mode #btnAddRow,
+body.bank-mode #btnSave,
+body.bank-mode .learn-btn,
+body.bank-mode .del-btn,
+body.bank-mode .pick-file,
+body.bank-mode .ch-input,
+body.bank-mode .fade-btn,
+body.bank-mode .knob-wrap { display: none; }

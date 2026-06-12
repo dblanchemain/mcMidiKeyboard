@@ -9,6 +9,19 @@ let nextId = 0;
 // Id de la ligne en attente de MIDI Learn (null = pas en mode learn)
 let midiLearnTarget = null;
 
+// ── Mode banque ───────────────────────────────────────────────────────────────
+let bankModeState = null;
+// bankModeState : {
+//   banks      : [{keys:[], nbCanaux, polyphonie}],
+//   bankIdx    : 0,
+//   activeSlot : 'a',
+//   loadedIds  : { a: Set<id>, b: Set<id> },
+//   activeKeyMap : Map<note, id>,
+//   activeVoices : Set<id>,   // IDs dont la voix est encore active
+// }
+
+function mkKbId(slot, key) { return `kb_${slot}_${key}`; }
+
 
 // ── Noms de notes MIDI ────────────────────────────────────────────────────────
 const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
@@ -415,22 +428,179 @@ function onMidiMessage(e) {
       applyMidiLearn(note);
       return;
     }
-    const row = rows.find(r => r.key === note &&
-      (r.channel === null || r.channel === channel));
-    if (row && row.file && row.loadState === 'ready') {
-      window.api.sendAudio({ cmd: 'play', id: row.id, velocity });
-      setRowActive(row.id, true);
+    if (bankModeState) {
+      const id = bankModeState.activeKeyMap.get(note);
+      if (id) {
+        window.api.sendAudio({ cmd: 'play', id, velocity });
+        bankModeState.activeVoices.add(id);
+      }
+    } else {
+      const row = rows.find(r => r.key === note &&
+        (r.channel === null || r.channel === channel));
+      if (row && row.file && row.loadState === 'ready') {
+        window.api.sendAudio({ cmd: 'play', id: row.id, velocity });
+        setRowActive(row.id, true);
+      }
     }
 
   } else if (type === 0x80 || (type === 0x90 && velocity === 0)) {
     // Note Off
-    const row = rows.find(r => r.key === note &&
-      (r.channel === null || r.channel === channel));
-    if (row) window.api.sendAudio({ cmd: 'stop', id: row.id });
+    if (bankModeState) {
+      const id = bankModeState.activeKeyMap.get(note);
+      if (id) window.api.sendAudio({ cmd: 'stop', id });
+    } else {
+      const row = rows.find(r => r.key === note &&
+        (r.channel === null || r.channel === channel));
+      if (row) window.api.sendAudio({ cmd: 'stop', id: row.id });
+    }
   }
 }
 
 initMidi();
+
+// ── Fonctions mode banque ─────────────────────────────────────────────────────
+
+function loadKbBankIntoSlot(bankIdx, slot) {
+  const s = bankModeState;
+  if (!s || bankIdx >= s.banks.length) return;
+  const ids = new Set();
+  for (const k of s.banks[bankIdx].keys ?? []) {
+    const id = mkKbId(slot, k.key);
+    window.api.sendAudio({
+      cmd: 'update', id, file: k.file,
+      gain:     k.gain     ?? 1,
+      fadeType: k.fadeType ?? 'l',
+      fadeIn:   k.fadeIn   ?? 0.05,
+      fadeOut:  k.fadeOut  ?? 0.1,
+      oneShot:  k.oneShot  ?? false,
+    });
+    ids.add(id);
+  }
+  s.loadedIds[slot] = ids;
+}
+
+function switchKeyboardBank() {
+  const s = bankModeState;
+  const nextIdx = s.bankIdx + 1;
+  if (nextIdx >= s.banks.length) return;
+
+  const prevSlot = s.activeSlot;
+  const nextSlot = prevSlot === 'a' ? 'b' : 'a';
+
+  s.bankIdx    = nextIdx;
+  s.activeSlot = nextSlot;
+  s.activeVoices.clear();
+
+  s.activeKeyMap.clear();
+  for (const k of s.banks[nextIdx].keys ?? []) {
+    s.activeKeyMap.set(k.key, mkKbId(nextSlot, k.key));
+  }
+
+  for (const id of s.loadedIds[prevSlot] ?? []) {
+    window.api.sendAudio({ cmd: 'remove', id });
+  }
+  s.loadedIds[prevSlot] = new Set();
+
+  const futureIdx = nextIdx + 1;
+  if (futureIdx < s.banks.length) loadKbBankIntoSlot(futureIdx, prevSlot);
+
+  renderBankRows(s.banks[nextIdx], nextSlot);
+  updateBankIndicator();
+}
+
+function renderBankRows(bankData, slot) {
+  rows = []; nextId = 0;
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  for (const k of bankData.keys ?? []) {
+    const id = mkKbId(slot, k.key);
+    const tr = document.createElement('tr');
+    tr.dataset.bankId = id;
+    tr.innerHTML = `
+      <td class="key-cell"><div class="key-inner">
+        <span class="key-name">${midiToName(k.key)}</span>
+      </div></td>
+      <td>—</td>
+      <td class="file-cell">
+        <span class="load-dot load-loading" data-bankid="${id}" title="Chargement…"></span>
+        <span class="fname set" title="${escHtml(k.file)}">${baseName(k.file)}</span>
+      </td>
+      <td><span class="knob-val">${Number(k.gain ?? 1).toFixed(1)}</span></td>
+      <td><span class="fade-badge">${k.fadeType ?? 'l'}</span></td>
+      <td><span>${Number(k.fadeIn ?? 0.05).toFixed(2)}s</span></td>
+      <td><span>${Number(k.fadeOut ?? 0.1).toFixed(2)}s</span></td>
+      <td><span>${(k.oneShot ?? false) ? '1shot' : 'sust'}</span></td>
+      <td></td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function updateBankIndicator() {
+  const el = document.getElementById('bankIndicator');
+  if (!el) return;
+  if (bankModeState) {
+    el.textContent = `Bank ${bankModeState.bankIdx + 1} / ${bankModeState.banks.length}`;
+    el.classList.remove('hidden');
+  } else {
+    el.classList.add('hidden');
+  }
+}
+
+async function openBankFolder() {
+  const folder = await window.api.openFolder();
+  if (!folder) return;
+
+  const entries = await window.api.listFolder(folder);
+  const bankPattern = /^(.+)_bank(\d+)\.json$/;
+  const bankFiles = [];
+  for (const e of entries) {
+    const m = e.name.match(bankPattern);
+    if (m) bankFiles.push({ num: parseInt(m[2]), path: e.full });
+  }
+  if (!bankFiles.length) { alert('Aucun fichier *_bank*.json dans ce dossier'); return; }
+  bankFiles.sort((a, b) => a.num - b.num);
+
+  let nbCanaux = 16, polyphonie = 0;
+  const bankDataArr = [];
+  for (const b of bankFiles) {
+    const text = await window.api.readTextFile(b.path);
+    if (!text) { bankDataArr.push({ keys: [] }); continue; }
+    try {
+      const data = JSON.parse(text);
+      nbCanaux   = Math.max(nbCanaux,   data.nbCanaux   ?? 16);
+      polyphonie = Math.max(polyphonie, data.polyphonie ?? 0);
+      bankDataArr.push({ keys: data.keys ?? [] });
+    } catch (_) { bankDataArr.push({ keys: [] }); }
+  }
+
+  // Quitter le mode normal
+  rows = []; nextId = 0;
+  document.getElementById('tableBody').innerHTML = '';
+  document.body.classList.add('bank-mode');
+
+  bankModeState = {
+    banks:        bankDataArr,
+    bankIdx:      0,
+    activeSlot:   'a',
+    loadedIds:    { a: new Set(), b: new Set() },
+    activeKeyMap: new Map(),
+    activeVoices: new Set(),
+  };
+
+  window.api.restartAudio(nbCanaux);
+  if (polyphonie > 0) window.api.sendAudio({ cmd: 'set_polyphonie', value: polyphonie });
+
+  loadKbBankIntoSlot(0, 'a');
+  if (bankDataArr.length > 1) loadKbBankIntoSlot(1, 'b');
+
+  for (const k of bankDataArr[0]?.keys ?? []) {
+    bankModeState.activeKeyMap.set(k.key, mkKbId('a', k.key));
+  }
+
+  renderBankRows(bankDataArr[0], 'a');
+  updateBankIndicator();
+}
 
 // ── Fichier ──────────────────────────────────────────────────────────────────
 
@@ -530,13 +700,31 @@ window.api.onAudioEvent((msg) => {
     status.textContent = 'audio: erreur — ' + msg.message;
     status.className   = 'status err';
   } else if (msg.type === 'voice_end') {
-    setRowActive(msg.id, false);
+    if (bankModeState) {
+      bankModeState.activeVoices.delete(msg.id);
+      if (bankModeState.activeVoices.size === 0 &&
+          bankModeState.bankIdx + 1 < bankModeState.banks.length) {
+        switchKeyboardBank();
+      }
+    } else {
+      setRowActive(msg.id, false);
+    }
   } else if (msg.type === 'loaded') {
-    const row = rows.find(r => r.id === msg.id);
-    if (row) { row.loadState = 'ready'; updateLoadDot(row); }
+    if (bankModeState) {
+      const dot = document.querySelector(`.load-dot[data-bankid="${msg.id}"]`);
+      if (dot) { dot.className = 'load-dot load-ready'; dot.title = 'Prêt'; }
+    } else {
+      const row = rows.find(r => r.id === msg.id);
+      if (row) { row.loadState = 'ready'; updateLoadDot(row); }
+    }
   } else if (msg.type === 'load_error') {
-    const row = rows.find(r => r.id === msg.id);
-    if (row) { row.loadState = 'error'; updateLoadDot(row); }
+    if (bankModeState) {
+      const dot = document.querySelector(`.load-dot[data-bankid="${msg.id}"]`);
+      if (dot) { dot.className = 'load-dot load-error'; dot.title = msg.message ?? 'Erreur'; }
+    } else {
+      const row = rows.find(r => r.id === msg.id);
+      if (row) { row.loadState = 'error'; updateLoadDot(row); }
+    }
   }
 });
 
@@ -576,6 +764,10 @@ document.getElementById('btnLoad').addEventListener('click', async () => {
     reader.onload = (ev) => {
       try {
         const data = JSON.parse(ev.target.result);
+        // Quitter le mode banque si actif
+        bankModeState = null;
+        document.body.classList.remove('bank-mode');
+        updateBankIndicator();
         document.getElementById('tableBody').innerHTML = '';
         rows = []; nextId = 0;
         const nbCanaux = !Array.isArray(data) && data.nbCanaux ? data.nbCanaux : 16;
@@ -595,6 +787,8 @@ document.getElementById('btnAddRow').addEventListener('click', () => {
   if (rows.length === 0) window.api.restartAudio(16);
   makeRow();
 });
+
+document.getElementById('btnOpenBanks').addEventListener('click', openBankFolder);
 
 // ── Thèmes ────────────────────────────────────────────────────────────────────
 initThemes();

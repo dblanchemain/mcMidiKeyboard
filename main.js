@@ -133,6 +133,25 @@ function sendToAudio(msg) {
 
 // ── IPC handlers ────────────────────────────────────────────────────────────
 
+ipcMain.handle('open-folder-dialog', () =>
+  dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory'],
+    title: 'Ouvrir un dossier de banks',
+  }).then(r => r.canceled ? null : r.filePaths[0])
+);
+
+ipcMain.handle('list-folder', (_, folderPath) => {
+  try {
+    return fs.readdirSync(folderPath)
+      .map(name => ({ name, full: path.join(folderPath, name) }));
+  } catch (_) { return []; }
+});
+
+ipcMain.handle('read-text-file', (_, filePath) => {
+  try { return fs.readFileSync(filePath, 'utf8'); }
+  catch (_) { return null; }
+});
+
 ipcMain.handle('open-file-dialog', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile'],

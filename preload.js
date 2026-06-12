@@ -3,6 +3,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   openFile:        () => ipcRenderer.invoke('open-file-dialog'),
+  openFolder:      () => ipcRenderer.invoke('open-folder-dialog'),
+  listFolder:      (p) => ipcRenderer.invoke('list-folder', p),
+  readTextFile:    (p) => ipcRenderer.invoke('read-text-file', p),
   sendAudio:       (msg) => ipcRenderer.send('audio-cmd', msg),
   restartAudio:    (maxPorts) => ipcRenderer.send('restart-audio-server', maxPorts),
   onAudioEvent:    (cb) => ipcRenderer.on('audio-event', (_e, msg) => cb(msg)),
