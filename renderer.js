@@ -433,6 +433,9 @@ function onMidiMessage(e) {
       if (id) {
         window.api.sendAudio({ cmd: 'play', id, velocity });
         bankModeState.activeVoices.add(id);
+        console.log(`[bank] play note=${note} id=${id} activeVoices=[${[...bankModeState.activeVoices]}]`);
+      } else {
+        console.log(`[bank] note=${note} pas dans keyMap (bank ${bankModeState.bankIdx + 1})`);
       }
     } else {
       const row = rows.find(r => r.key === note &&
@@ -504,16 +507,19 @@ function switchKeyboardBank() {
   const futureIdx = nextIdx + 1;
   if (futureIdx < s.banks.length) loadKbBankIntoSlot(futureIdx, prevSlot);
 
-  renderBankRows(s.banks[nextIdx], nextSlot);
+  console.log(`[bank] switch → bank ${nextIdx + 1}/${s.banks.length} (slot ${nextSlot})`);
+  renderBankRows(s.banks[nextIdx], nextSlot, true);
   updateBankIndicator();
 }
 
-function renderBankRows(bankData, slot) {
+function renderBankRows(bankData, slot, preloaded = false) {
   rows = []; nextId = 0;
   const tbody = document.getElementById('tableBody');
   tbody.innerHTML = '';
   for (const k of bankData.keys ?? []) {
     const id = mkKbId(slot, k.key);
+    const dotClass = preloaded ? 'load-dot load-ready' : 'load-dot load-loading';
+    const dotTitle = preloaded ? 'Prêt' : 'Chargement…';
     const tr = document.createElement('tr');
     tr.dataset.bankId = id;
     tr.innerHTML = `
@@ -522,7 +528,7 @@ function renderBankRows(bankData, slot) {
       </div></td>
       <td>—</td>
       <td class="file-cell">
-        <span class="load-dot load-loading" data-bankid="${id}" title="Chargement…"></span>
+        <span class="${dotClass}" data-bankid="${id}" title="${dotTitle}"></span>
         <span class="fname set" title="${escHtml(k.file)}">${baseName(k.file)}</span>
       </td>
       <td><span class="knob-val">${Number(k.gain ?? 1).toFixed(1)}</span></td>
@@ -716,6 +722,7 @@ window.api.onAudioEvent((msg) => {
   } else if (msg.type === 'voice_end') {
     if (bankModeState) {
       bankModeState.activeVoices.delete(msg.id);
+      console.log(`[bank] voice_end id=${msg.id} activeVoices=[${[...bankModeState.activeVoices]}] bankIdx=${bankModeState.bankIdx}/${bankModeState.banks.length - 1}`);
       if (bankModeState.activeVoices.size === 0 &&
           bankModeState.bankIdx + 1 < bankModeState.banks.length) {
         switchKeyboardBank();
