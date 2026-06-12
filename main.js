@@ -119,9 +119,7 @@ function stopAudioServer() {
   if (audioProcess) {
     const proc = audioProcess;
     audioProcess = null;
-    sendToAudio({ cmd: 'quit' });
-    // Laisser Python sortir proprement du `with client:` pour déconnecter JACK
-    // proprement ; si ça dure plus d'une seconde, tuer de force.
+    if (proc.stdin.writable) proc.stdin.write(JSON.stringify({ cmd: 'quit' }) + '\n');
     const t = setTimeout(() => proc.kill(), 1000);
     proc.once('exit', () => clearTimeout(t));
   }
