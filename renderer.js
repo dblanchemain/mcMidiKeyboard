@@ -433,7 +433,8 @@ function onMidiMessage(e) {
       if (id) {
         window.api.sendAudio({ cmd: 'play', id, velocity });
         bankModeState.activeVoices.add(id);
-        console.log(`[bank] play note=${note} id=${id} activeVoices=[${[...bankModeState.activeVoices]}]`);
+        bankModeState.playedThisBank.add(note);
+        console.log(`[bank] play note=${note} id=${id} played=${bankModeState.playedThisBank.size}/${bankModeState.banks[bankModeState.bankIdx].keys.length}`);
       } else {
         console.log(`[bank] note=${note} pas dans keyMap (bank ${bankModeState.bankIdx + 1})`);
       }
@@ -482,6 +483,35 @@ function loadKbBankIntoSlot(bankIdx, slot) {
   s.loadedIds[slot] = ids;
 }
 
+function resetKeyboardBanks() {
+  const s = bankModeState;
+  if (!s) return;
+
+  // Arrêter et décharger tous les slots
+  for (const slot of ['a', 'b']) {
+    for (const id of s.loadedIds[slot] ?? []) {
+      window.api.sendAudio({ cmd: 'remove', id });
+    }
+    s.loadedIds[slot] = new Set();
+  }
+
+  s.bankIdx         = 0;
+  s.activeSlot      = 'a';
+  s.activeVoices.clear();
+  s.playedThisBank  = new Set();
+  s.activeKeyMap.clear();
+
+  loadKbBankIntoSlot(0, 'a');
+  for (const k of s.banks[0]?.keys ?? []) {
+    s.activeKeyMap.set(k.key, mkKbId('a', k.key));
+  }
+  if (s.banks.length > 1) loadKbBankIntoSlot(1, 'b');
+
+  renderBankRows(s.banks[0], 'a');
+  updateBankIndicator();
+  console.log('[bank] reset → bank 1');
+}
+
 function switchKeyboardBank() {
   const s = bankModeState;
   const nextIdx = s.bankIdx + 1;
@@ -490,9 +520,10 @@ function switchKeyboardBank() {
   const prevSlot = s.activeSlot;
   const nextSlot = prevSlot === 'a' ? 'b' : 'a';
 
-  s.bankIdx    = nextIdx;
-  s.activeSlot = nextSlot;
+  s.bankIdx         = nextIdx;
+  s.activeSlot      = nextSlot;
   s.activeVoices.clear();
+  s.playedThisBank  = new Set();
 
   s.activeKeyMap.clear();
   for (const k of s.banks[nextIdx].keys ?? []) {
@@ -599,12 +630,13 @@ async function openBankFolder() {
   }
 
   bankModeState = {
-    banks:        bankDataArr,
-    bankIdx:      0,
-    activeSlot:   'a',
-    loadedIds:    { a: new Set(), b: new Set() },
-    activeKeyMap: new Map(),
-    activeVoices: new Set(),
+    banks:          bankDataArr,
+    bankIdx:        0,
+    activeSlot:     'a',
+    loadedIds:      { a: new Set(), b: new Set() },
+    activeKeyMap:   new Map(),
+    activeVoices:   new Set(),
+    playedThisBank: new Set(),  // notes MIDI jouées dans la banque courante
     interpName,
   };
 
@@ -721,10 +753,14 @@ window.api.onAudioEvent((msg) => {
     status.className   = 'status err';
   } else if (msg.type === 'voice_end') {
     if (bankModeState) {
-      bankModeState.activeVoices.delete(msg.id);
-      console.log(`[bank] voice_end id=${msg.id} activeVoices=[${[...bankModeState.activeVoices]}] bankIdx=${bankModeState.bankIdx}/${bankModeState.banks.length - 1}`);
-      if (bankModeState.activeVoices.size === 0 &&
-          bankModeState.bankIdx + 1 < bankModeState.banks.length) {
+      const s = bankModeState;
+      s.activeVoices.delete(msg.id);
+      const nPlayed = s.playedThisBank.size;
+      const nKeys   = s.banks[s.bankIdx].keys.length;
+      console.log(`[bank] voice_end id=${msg.id} active=${s.activeVoices.size} played=${nPlayed}/${nKeys}`);
+      if (s.activeVoices.size === 0 &&
+          nPlayed >= nKeys &&
+          s.bankIdx + 1 < s.banks.length) {
         switchKeyboardBank();
       }
     } else {
@@ -810,6 +846,7 @@ document.getElementById('btnAddRow').addEventListener('click', () => {
 });
 
 document.getElementById('btnOpenBanks').addEventListener('click', openBankFolder);
+document.getElementById('btnResetBanks').addEventListener('click', resetKeyboardBanks);
 
 // ── Thèmes ────────────────────────────────────────────────────────────────────
 initThemes();

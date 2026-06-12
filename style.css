@@ -320,3 +320,4 @@ body.bank-mode .pick-file,
 body.bank-mode .ch-input,
 body.bank-mode .fade-btn,
 body.bank-mode .knob-wrap { display: none; }
+body.bank-mode #btnResetBanks { display: inline-block; }
