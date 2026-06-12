@@ -502,11 +502,13 @@ function resetKeyboardBanks() {
     s.loadedIds[slot] = new Set();
   }
 
-  s.bankIdx            = 0;
-  s.activeSlot         = 'a';
+  s.bankIdx              = 0;
+  s.activeSlot           = 'a';
   s.activeVoices.clear();
-  s.playedThisBank     = new Set();
-  s.pendingCleanupSlot = null;
+  s.playedThisBank       = new Set();
+  s.pendingCleanupSlot   = null;
+  s.earlyPreloaded       = false;
+  s.pendingCleanupOldIds = null;
   s.activeKeyMap.clear();
 
   loadKbBankIntoSlot(0, 'a');
@@ -523,13 +525,25 @@ function resetKeyboardBanks() {
 function cleanupSlot(slot) {
   const s = bankModeState;
   s.pendingCleanupSlot = null;
-  for (const id of s.loadedIds[slot] ?? []) {
-    window.api.sendAudio({ cmd: 'remove', id });
+  if (s.earlyPreloaded) {
+    // Le preloading a déjà envoyé les update commands dans ce slot ;
+    // on supprime uniquement les anciens IDs absents de la nouvelle bank.
+    s.earlyPreloaded = false;
+    const newIds = s.loadedIds[slot] ?? new Set();
+    for (const id of s.pendingCleanupOldIds ?? []) {
+      if (!newIds.has(id)) window.api.sendAudio({ cmd: 'remove', id });
+    }
+    s.pendingCleanupOldIds = null;
+    console.log(`[bank] slot ${slot} : nettoyage différentiel (préchargement anticipé)`);
+  } else {
+    for (const id of s.loadedIds[slot] ?? []) {
+      window.api.sendAudio({ cmd: 'remove', id });
+    }
+    s.loadedIds[slot] = new Set();
+    const futureIdx = s.bankIdx + 1;
+    if (futureIdx < s.banks.length) loadKbBankIntoSlot(futureIdx, slot);
+    console.log(`[bank] libération slot ${slot}`);
   }
-  s.loadedIds[slot] = new Set();
-  const futureIdx = s.bankIdx + 1;
-  if (futureIdx < s.banks.length) loadKbBankIntoSlot(futureIdx, slot);
-  console.log(`[bank] libération slot ${slot}`);
 }
 
 function slotHasActiveVoices(slot) {
@@ -558,7 +572,18 @@ function advanceKeyboardBank() {
     s.activeKeyMap.set(k.key, mkKbId(nextSlot, k.key));
   }
 
-  console.log(`[bank] → bank ${nextIdx + 1}/${s.banks.length} (keymap=${nextSlot}, cleanup ${prevSlot} en attente)`);
+  // Précharger bank N+2 immédiatement (sans attendre le silence du slot précédent)
+  const futureIdx = nextIdx + 1;
+  if (futureIdx < s.banks.length) {
+    s.pendingCleanupOldIds = new Set(s.loadedIds[prevSlot] ?? []);
+    loadKbBankIntoSlot(futureIdx, prevSlot);   // met à jour loadedIds[prevSlot]
+    s.earlyPreloaded = true;
+  } else {
+    s.pendingCleanupOldIds = null;
+    s.earlyPreloaded = false;
+  }
+
+  console.log(`[bank] → bank ${nextIdx + 1}/${s.banks.length} (keymap=${nextSlot}, préchargement bank ${futureIdx + 1} anticipé=${s.earlyPreloaded})`);
   renderBankRows(s.banks[nextIdx], nextSlot, true);
   updateBankIndicator();
 }
@@ -650,14 +675,16 @@ async function openBankFolder() {
   }
 
   bankModeState = {
-    banks:               bankDataArr,
-    bankIdx:             0,
-    activeSlot:          'a',
-    loadedIds:           { a: new Set(), b: new Set() },
-    activeKeyMap:        new Map(),
-    activeVoices:        new Set(),
-    playedThisBank:      new Set(),  // notes MIDI jouées dans la banque courante
-    pendingCleanupSlot:  null,       // ancien slot à libérer quand ses voix sont silencieuses
+    banks:                bankDataArr,
+    bankIdx:              0,
+    activeSlot:           'a',
+    loadedIds:            { a: new Set(), b: new Set() },
+    activeKeyMap:         new Map(),
+    activeVoices:         new Set(),
+    playedThisBank:       new Set(),
+    pendingCleanupSlot:   null,
+    earlyPreloaded:       false,
+    pendingCleanupOldIds: null,
     interpName,
   };
 
