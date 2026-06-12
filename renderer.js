@@ -553,13 +553,21 @@ async function openBankFolder() {
 
   const entries = await window.api.listFolder(folder);
   const bankPattern = /^(.+)_bank(\d+)\.json$/;
-  const bankFiles = [];
+
+  // Grouper par nom d'interprète, puis prendre le premier alphabétiquement
+  const banksByInterp = new Map();
   for (const e of entries) {
     const m = e.name.match(bankPattern);
-    if (m) bankFiles.push({ num: parseInt(m[2]), path: e.full });
+    if (!m) continue;
+    const interpName = m[1], num = parseInt(m[2]);
+    if (!banksByInterp.has(interpName)) banksByInterp.set(interpName, []);
+    banksByInterp.get(interpName).push({ num, path: e.full });
   }
-  if (!bankFiles.length) { alert('Aucun fichier *_bank*.json dans ce dossier'); return; }
-  bankFiles.sort((a, b) => a.num - b.num);
+  if (!banksByInterp.size) { alert('Aucun fichier *_bank*.json dans ce dossier'); return; }
+
+  const interpName = [...banksByInterp.keys()].sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true }))[0];
+  const bankFiles = banksByInterp.get(interpName).sort((a, b) => a.num - b.num);
 
   let nbCanaux = 16, polyphonie = 0;
   const bankDataArr = [];
@@ -579,6 +587,11 @@ async function openBankFolder() {
   document.getElementById('tableBody').innerHTML = '';
   document.body.classList.add('bank-mode');
 
+  if (banksByInterp.size > 1) {
+    const others = [...banksByInterp.keys()].filter(n => n !== interpName).slice(0, 3).join(', ');
+    console.info(`Dossier multi-interprètes : chargé "${interpName}". Ignorés : ${others}…`);
+  }
+
   bankModeState = {
     banks:        bankDataArr,
     bankIdx:      0,
@@ -586,6 +599,7 @@ async function openBankFolder() {
     loadedIds:    { a: new Set(), b: new Set() },
     activeKeyMap: new Map(),
     activeVoices: new Set(),
+    interpName,
   };
 
   window.api.restartAudio(nbCanaux);
