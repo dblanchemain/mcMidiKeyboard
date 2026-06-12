@@ -434,7 +434,14 @@ function onMidiMessage(e) {
         window.api.sendAudio({ cmd: 'play', id, velocity });
         bankModeState.activeVoices.add(id);
         bankModeState.playedThisBank.add(note);
-        console.log(`[bank] play note=${note} id=${id} played=${bankModeState.playedThisBank.size}/${bankModeState.banks[bankModeState.bankIdx].keys.length}`);
+        const s = bankModeState;
+        const nPlayed = s.playedThisBank.size, nKeys = s.banks[s.bankIdx].keys.length;
+        console.log(`[bank] play note=${note} played=${nPlayed}/${nKeys}`);
+        if (s.pendingCleanupSlot === null &&
+            nPlayed >= nKeys &&
+            s.bankIdx + 1 < s.banks.length) {
+          advanceKeyboardBank();
+        }
       } else {
         console.log(`[bank] note=${note} pas dans keyMap (bank ${bankModeState.bankIdx + 1})`);
       }
@@ -495,10 +502,11 @@ function resetKeyboardBanks() {
     s.loadedIds[slot] = new Set();
   }
 
-  s.bankIdx         = 0;
-  s.activeSlot      = 'a';
+  s.bankIdx            = 0;
+  s.activeSlot         = 'a';
   s.activeVoices.clear();
-  s.playedThisBank  = new Set();
+  s.playedThisBank     = new Set();
+  s.pendingCleanupSlot = null;
   s.activeKeyMap.clear();
 
   loadKbBankIntoSlot(0, 'a');
@@ -512,33 +520,45 @@ function resetKeyboardBanks() {
   console.log('[bank] reset → bank 1');
 }
 
-function switchKeyboardBank() {
+function cleanupSlot(slot) {
   const s = bankModeState;
-  const nextIdx = s.bankIdx + 1;
+  s.pendingCleanupSlot = null;
+  for (const id of s.loadedIds[slot] ?? []) {
+    window.api.sendAudio({ cmd: 'remove', id });
+  }
+  s.loadedIds[slot] = new Set();
+  const futureIdx = s.bankIdx + 1;
+  if (futureIdx < s.banks.length) loadKbBankIntoSlot(futureIdx, slot);
+  console.log(`[bank] libération slot ${slot}`);
+}
+
+function slotHasActiveVoices(slot) {
+  const prefix = `kb_${slot}_`;
+  for (const id of bankModeState.activeVoices) {
+    if (id.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
+function advanceKeyboardBank() {
+  const s = bankModeState;
+  const nextIdx  = s.bankIdx + 1;
   if (nextIdx >= s.banks.length) return;
 
   const prevSlot = s.activeSlot;
   const nextSlot = prevSlot === 'a' ? 'b' : 'a';
 
-  s.bankIdx         = nextIdx;
-  s.activeSlot      = nextSlot;
-  s.activeVoices.clear();
-  s.playedThisBank  = new Set();
+  s.bankIdx            = nextIdx;
+  s.activeSlot         = nextSlot;
+  s.playedThisBank     = new Set();
+  s.pendingCleanupSlot = prevSlot;
 
   s.activeKeyMap.clear();
   for (const k of s.banks[nextIdx].keys ?? []) {
     s.activeKeyMap.set(k.key, mkKbId(nextSlot, k.key));
   }
 
-  for (const id of s.loadedIds[prevSlot] ?? []) {
-    window.api.sendAudio({ cmd: 'remove', id });
-  }
-  s.loadedIds[prevSlot] = new Set();
-
-  const futureIdx = nextIdx + 1;
-  if (futureIdx < s.banks.length) loadKbBankIntoSlot(futureIdx, prevSlot);
-
-  console.log(`[bank] switch → bank ${nextIdx + 1}/${s.banks.length} (slot ${nextSlot})`);
+  console.log(`[bank] → bank ${nextIdx + 1}/${s.banks.length} (keymap=${nextSlot}, cleanup ${prevSlot} en attente)`);
   renderBankRows(s.banks[nextIdx], nextSlot, true);
   updateBankIndicator();
 }
@@ -630,13 +650,14 @@ async function openBankFolder() {
   }
 
   bankModeState = {
-    banks:          bankDataArr,
-    bankIdx:        0,
-    activeSlot:     'a',
-    loadedIds:      { a: new Set(), b: new Set() },
-    activeKeyMap:   new Map(),
-    activeVoices:   new Set(),
-    playedThisBank: new Set(),  // notes MIDI jouées dans la banque courante
+    banks:               bankDataArr,
+    bankIdx:             0,
+    activeSlot:          'a',
+    loadedIds:           { a: new Set(), b: new Set() },
+    activeKeyMap:        new Map(),
+    activeVoices:        new Set(),
+    playedThisBank:      new Set(),  // notes MIDI jouées dans la banque courante
+    pendingCleanupSlot:  null,       // ancien slot à libérer quand ses voix sont silencieuses
     interpName,
   };
 
@@ -755,13 +776,9 @@ window.api.onAudioEvent((msg) => {
     if (bankModeState) {
       const s = bankModeState;
       s.activeVoices.delete(msg.id);
-      const nPlayed = s.playedThisBank.size;
-      const nKeys   = s.banks[s.bankIdx].keys.length;
-      console.log(`[bank] voice_end id=${msg.id} active=${s.activeVoices.size} played=${nPlayed}/${nKeys}`);
-      if (s.activeVoices.size === 0 &&
-          nPlayed >= nKeys &&
-          s.bankIdx + 1 < s.banks.length) {
-        switchKeyboardBank();
+      console.log(`[bank] voice_end id=${msg.id} active=${s.activeVoices.size} pendingCleanup=${s.pendingCleanupSlot}`);
+      if (s.pendingCleanupSlot !== null && !slotHasActiveVoices(s.pendingCleanupSlot)) {
+        cleanupSlot(s.pendingCleanupSlot);
       }
     } else {
       setRowActive(msg.id, false);
