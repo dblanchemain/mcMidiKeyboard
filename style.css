@@ -232,6 +232,20 @@ td { padding: 4px 6px; vertical-align: middle; }
   margin-top: 2px;
 }
 
+/* Inputs fade-in / fade-out inline */
+.fade-input {
+  width: 58px;
+  text-align: center;
+  font-size: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 3px 4px;
+}
+.fade-input::-webkit-inner-spin-button { opacity: 0.4; }
+.fade-input:focus { border-color: var(--accent); outline: none; }
+
 /* Fade cell */
 .fade-cell {
   display: flex;

@@ -269,8 +269,12 @@ function renderRow(row) {
         <button class="fade-btn" data-id="${row.id}">éditer</button>
       </div>
     </td>
-    <td><span class="fadeInDisp" data-id="${row.id}">${Number(row.fadeIn).toFixed(2)}s</span></td>
-    <td><span class="fadeOutDisp" data-id="${row.id}">${Number(row.fadeOut).toFixed(2)}s</span></td>
+    <td><input type="number" class="fade-input fadeInDisp" data-id="${row.id}"
+               min="0" max="60" step="0.01" value="${Number(row.fadeIn).toFixed(2)}"
+               title="Fade-in (s)"/></td>
+    <td><input type="number" class="fade-input fadeOutDisp" data-id="${row.id}"
+               min="0" max="60" step="0.01" value="${Number(row.fadeOut).toFixed(2)}"
+               title="Fade-out (s)"/></td>
     <td class="mode-cell">
       <label class="mode-toggle" title="One-shot : joue jusqu'à la fin&#10;Sustain : s'arrête au Note Off">
         <input type="checkbox" class="oneshot-chk" data-id="${row.id}" ${row.oneShot ? 'checked' : ''}/>
@@ -307,6 +311,18 @@ function renderRow(row) {
   tr.querySelector('.oneshot-chk').addEventListener('change', (e) => {
     row.oneShot = e.target.checked;
     e.target.nextElementSibling.textContent = row.oneShot ? '1shot' : 'sust';
+    sendRowUpdate(row);
+  });
+
+  tr.querySelector('.fadeInDisp').addEventListener('change', (e) => {
+    row.fadeIn = Math.max(0, Math.min(60, parseFloat(e.target.value) || 0));
+    e.target.value = Number(row.fadeIn).toFixed(2);
+    sendRowUpdate(row);
+  });
+
+  tr.querySelector('.fadeOutDisp').addEventListener('change', (e) => {
+    row.fadeOut = Math.max(0, Math.min(60, parseFloat(e.target.value) || 0));
+    e.target.value = Number(row.fadeOut).toFixed(2);
     sendRowUpdate(row);
   });
 }
@@ -758,9 +774,9 @@ function updateLoadDot(row) {
 function updateFadeCell(row) {
   const tr = document.querySelector(`tr[data-id="${row.id}"]`);
   if (!tr) return;
-  tr.querySelector('.fade-badge').textContent  = row.fadeType;
-  tr.querySelector('.fadeInDisp').textContent  = Number(row.fadeIn).toFixed(2) + 's';
-  tr.querySelector('.fadeOutDisp').textContent = Number(row.fadeOut).toFixed(2) + 's';
+  tr.querySelector('.fade-badge').textContent = row.fadeType;
+  tr.querySelector('.fadeInDisp').value        = Number(row.fadeIn).toFixed(2);
+  tr.querySelector('.fadeOutDisp').value       = Number(row.fadeOut).toFixed(2);
 }
 
 // ── Suppression de ligne ──────────────────────────────────────────────────────
