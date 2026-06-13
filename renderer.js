@@ -490,11 +490,11 @@ function loadKbBankIntoSlot(bankIdx, slot) {
   s.loadedIds[slot] = ids;
 }
 
-function resetKeyboardBanks() {
+function goToBank(targetIdx) {
   const s = bankModeState;
   if (!s) return;
+  targetIdx = Math.max(0, Math.min(targetIdx, s.banks.length - 1));
 
-  // Arrêter et décharger tous les slots
   for (const slot of ['a', 'b']) {
     for (const id of s.loadedIds[slot] ?? []) {
       window.api.sendAudio({ cmd: 'remove', id });
@@ -502,7 +502,7 @@ function resetKeyboardBanks() {
     s.loadedIds[slot] = new Set();
   }
 
-  s.bankIdx              = 0;
+  s.bankIdx              = targetIdx;
   s.activeSlot           = 'a';
   s.activeVoices.clear();
   s.playedThisBank       = new Set();
@@ -511,16 +511,18 @@ function resetKeyboardBanks() {
   s.pendingCleanupOldIds = null;
   s.activeKeyMap.clear();
 
-  loadKbBankIntoSlot(0, 'a');
-  for (const k of s.banks[0]?.keys ?? []) {
+  loadKbBankIntoSlot(targetIdx, 'a');
+  for (const k of s.banks[targetIdx]?.keys ?? []) {
     s.activeKeyMap.set(k.key, mkKbId('a', k.key));
   }
-  if (s.banks.length > 1) loadKbBankIntoSlot(1, 'b');
+  if (targetIdx + 1 < s.banks.length) loadKbBankIntoSlot(targetIdx + 1, 'b');
 
-  renderBankRows(s.banks[0], 'a');
+  renderBankRows(s.banks[targetIdx], 'a');
   updateBankIndicator();
-  console.log('[bank] reset → bank 1');
+  console.log(`[bank] nav → bank ${targetIdx + 1}/${s.banks.length}`);
 }
+
+function resetKeyboardBanks() { goToBank(0); }
 
 function cleanupSlot(slot) {
   const s = bankModeState;
@@ -622,8 +624,13 @@ function updateBankIndicator() {
   const el = document.getElementById('bankIndicator');
   if (!el) return;
   if (bankModeState) {
-    el.textContent = `Bank ${bankModeState.bankIdx + 1} / ${bankModeState.banks.length}`;
+    const idx = bankModeState.bankIdx, n = bankModeState.banks.length;
+    el.textContent = `Bank ${idx + 1} / ${n}`;
     el.classList.remove('hidden');
+    document.getElementById('btnBankFirst').disabled = (idx === 0);
+    document.getElementById('btnBankPrev') .disabled = (idx === 0);
+    document.getElementById('btnBankNext') .disabled = (idx >= n - 1);
+    document.getElementById('btnBankLast') .disabled = (idx >= n - 1);
   } else {
     el.classList.add('hidden');
   }
@@ -892,7 +899,10 @@ document.getElementById('btnAddRow').addEventListener('click', () => {
 });
 
 document.getElementById('btnOpenBanks').addEventListener('click', openBankFolder);
-document.getElementById('btnResetBanks').addEventListener('click', resetKeyboardBanks);
+document.getElementById('btnBankFirst').addEventListener('click', () => goToBank(0));
+document.getElementById('btnBankPrev') .addEventListener('click', () => bankModeState && goToBank(bankModeState.bankIdx - 1));
+document.getElementById('btnBankNext') .addEventListener('click', () => bankModeState && goToBank(bankModeState.bankIdx + 1));
+document.getElementById('btnBankLast') .addEventListener('click', () => bankModeState && goToBank(bankModeState.banks.length - 1));
 
 // ── Thèmes ────────────────────────────────────────────────────────────────────
 initThemes();
