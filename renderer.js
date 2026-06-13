@@ -826,6 +826,8 @@ window.api.onAudioEvent((msg) => {
       const row = rows.find(r => r.id === msg.id);
       if (row) { row.loadState = 'error'; updateLoadDot(row); }
     }
+  } else if (msg.type === 'devices') {
+    prefAudioHandleDevices(msg.list);
   }
 });
 
@@ -895,10 +897,60 @@ document.getElementById('btnResetBanks').addEventListener('click', resetKeyboard
 // ── Thèmes ────────────────────────────────────────────────────────────────────
 initThemes();
 
-// Appuyer sur Échap annule le MIDI Learn en cours
+// ── Popup Préférences ─────────────────────────────────────────────────────────
+
+let _prefSonDeviceIndex = null;
+
+document.getElementById('btnPrefs').addEventListener('click', () => {
+  document.getElementById('prefsPopup').classList.toggle('hidden');
+});
+
+document.getElementById('prefsClose').addEventListener('click', () => {
+  document.getElementById('prefsPopup').classList.add('hidden');
+});
+
+function prefShowTab(tab) {
+  document.querySelectorAll('.pref-tab').forEach(t => t.classList.remove('actif'));
+  document.querySelectorAll('.pref-pane').forEach(p => p.classList.remove('actif'));
+  document.getElementById('prefPane' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('actif');
+  document.querySelector(`.pref-tab[data-pane="${tab}"]`).classList.add('actif');
+}
+
+function prefSonRemplirUI() {
+  const status = document.getElementById('prefSonStatus');
+  if (status) status.textContent = 'Chargement…';
+  window.api.sendAudio({ cmd: 'list_devices' });
+}
+
+function prefAudioHandleDevices(list) {
+  const sel    = document.getElementById('prefSonDevice');
+  const status = document.getElementById('prefSonStatus');
+  if (!sel) return;
+  let opts = '<option value="">— défaut système —</option>';
+  for (const d of list) {
+    const label    = `[${d.index}] ${d.name} (${d.max_output_channels}ch, ${d.hostapi})`;
+    const selected = (d.index === _prefSonDeviceIndex) ? ' selected' : '';
+    opts += `<option value="${d.index}"${selected}>${label}</option>`;
+  }
+  sel.innerHTML = opts;
+  if (status) status.textContent = list.length + ' périphérique(s) disponible(s)';
+}
+
+function prefSonSetDevice(val) {
+  _prefSonDeviceIndex = val ? parseInt(val) : null;
+  window.api.sendAudio({ cmd: 'set_device', device: _prefSonDeviceIndex });
+  const status = document.getElementById('prefSonStatus');
+  if (status) status.textContent = 'Changement en cours…';
+}
+
+// Appuyer sur Échap ferme le popup ou annule le MIDI Learn
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && midiLearnTarget !== null) {
-    toggleLearn(midiLearnTarget);
+  if (e.key === 'Escape') {
+    if (!document.getElementById('prefsPopup').classList.contains('hidden')) {
+      document.getElementById('prefsPopup').classList.add('hidden');
+    } else if (midiLearnTarget !== null) {
+      toggleLearn(midiLearnTarget);
+    }
   }
 });
 
