@@ -149,6 +149,25 @@
     </table>
   </div>
 
+  <!-- Modal sauvegarde -->
+  <div id="saveModal" class="modal hidden">
+    <div class="modal-box">
+      <h3>Sauvegarder la configuration</h3>
+      <div class="fade-num-row">
+        <label>Canaux audio :</label>
+        <input id="saveNbCanaux" type="number" min="1" max="64" step="1" value="16" style="width:60px;"/>
+      </div>
+      <div class="fade-num-row">
+        <label>Polyphonie (0 = illimité) :</label>
+        <input id="savePolyphonie" type="number" min="0" max="64" step="1" value="0" style="width:60px;"/>
+      </div>
+      <div class="modal-buttons">
+        <button id="saveModalCancel">Annuler</button>
+        <button id="saveModalOk">Sauvegarder</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal fade-in/out (calqué sur objetParam.html de kandiskyscore) -->
   <div id="fadeModal" class="modal hidden">
     <div class="modal-box">

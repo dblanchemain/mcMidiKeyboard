@@ -851,12 +851,32 @@ window.api.onLoadDescriptor((data) => {
 
 // ── Sauvegarder / Charger ────────────────────────────────────────────────────
 
-document.getElementById('btnSave').addEventListener('click', async () => {
-  const { ipcRenderer } = require === undefined ? {} : {};
-  // Utiliser showSaveDialog via preload n'est pas exposé — on download
-  const json = JSON.stringify(rows.map(({ key, channel, file, gain, fadeType, fadeIn, fadeOut, oneShot }) =>
-    ({ key, channel, file, gain, fadeType, fadeIn, fadeOut, oneShot })), null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
+// nbCanaux/polyphonie courants (mis à jour au chargement d'un JSON)
+let _saveNbCanaux   = 16;
+let _savePolyphonie = 0;
+
+document.getElementById('btnSave').addEventListener('click', () => {
+  document.getElementById('saveNbCanaux').value   = _saveNbCanaux;
+  document.getElementById('savePolyphonie').value = _savePolyphonie;
+  document.getElementById('saveModal').classList.remove('hidden');
+});
+
+document.getElementById('saveModalCancel').addEventListener('click', () => {
+  document.getElementById('saveModal').classList.add('hidden');
+});
+
+document.getElementById('saveModalOk').addEventListener('click', () => {
+  _saveNbCanaux   = Math.max(1,  parseInt(document.getElementById('saveNbCanaux').value)   || 16);
+  _savePolyphonie = Math.max(0,  parseInt(document.getElementById('savePolyphonie').value) || 0);
+  document.getElementById('saveModal').classList.add('hidden');
+
+  const data = {
+    nbCanaux:   _saveNbCanaux,
+    polyphonie: _savePolyphonie,
+    keys: rows.map(({ key, channel, file, gain, fadeType, fadeIn, fadeOut, oneShot }) =>
+      ({ key, channel, file, gain, fadeType, fadeIn, fadeOut, oneShot })),
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href = url; a.download = 'mcMidiKeyboard.json'; a.click();
@@ -880,8 +900,12 @@ document.getElementById('btnLoad').addEventListener('click', async () => {
         updateBankIndicator();
         document.getElementById('tableBody').innerHTML = '';
         rows = []; nextId = 0;
-        const nbCanaux = !Array.isArray(data) && data.nbCanaux ? data.nbCanaux : 16;
+        const nbCanaux   = !Array.isArray(data) && data.nbCanaux   ? data.nbCanaux   : 16;
+        const polyphonie = !Array.isArray(data) && data.polyphonie ? data.polyphonie : 0;
+        _saveNbCanaux   = nbCanaux;
+        _savePolyphonie = polyphonie;
         window.api.restartAudio(nbCanaux);
+        if (polyphonie > 0) window.api.sendAudio({ cmd: 'set_polyphonie', value: polyphonie });
         applyDescriptor(data);
       } catch (err) {
         alert('Erreur de lecture JSON : ' + err.message);
