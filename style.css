@@ -368,4 +368,5 @@ body.bank-mode .pick-file,
 body.bank-mode .ch-input,
 body.bank-mode .fade-btn,
 body.bank-mode .knob-wrap { display: none; }
+.bank-nav-btn { display: none; }
 body.bank-mode .bank-nav-btn { display: inline-block; }
